@@ -11,6 +11,8 @@ A versatile Python utility designed to merge multiple source code files into a s
 - **Configurable**: Select specific file extensions to include/exclude via the Options menu.
 - **Safety**: Checks for path traversal attempts during the split process.
 
+![figure_01.png](docs/images/figure_01.png)
+
 ## Requirements
 
 - Python 3.x
