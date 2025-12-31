@@ -17,7 +17,8 @@ This directory contains unit tests for the Source Code Bundler application. The 
 - **test_regex_pattern_matching_for_css**: Test regex patterns correctly match CSS markers with comment delimiters.
 
 ### Path Handling and Security Tests
-- **test_path_traversal_prevention**: Test sanitization of paths attempting directory traversal.
+- **test_path_traversal_prevention**: Test that paths attempting directory traversal are skipped.
+- **test_path_traversal_prevention_robust**: Test robust prevention of path traversal using os.path.normpath.
 - **test_path_handling_for_root_directories**: Test path handling with nested and root-level files.
 - **test_relative_path_calculation_edge_cases_safe**: Test edge cases in relative path calculation safely.
 

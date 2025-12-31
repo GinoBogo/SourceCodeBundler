@@ -263,7 +263,7 @@ class TestSourceCodeBundler(unittest.TestCase):
     # ============================================================================
 
     def test_path_traversal_prevention(self):
-        """Test sanitization of paths attempting directory traversal."""
+        """Test that paths attempting directory traversal are skipped."""
         marker = source_code_bundler.SEPARATOR_MARKER
         malicious_content = (
             f"// {marker} START FILE: ../../etc/passwd\n"
@@ -277,7 +277,48 @@ class TestSourceCodeBundler(unittest.TestCase):
         source_code_bundler.split_source_code(self.bundle_file, self.output_dir)
 
         expected_path = os.path.join(self.output_dir, "etc", "passwd")
-        self.assertTrue(os.path.exists(expected_path))
+        self.assertFalse(os.path.exists(expected_path), "Unsafe path should be skipped")
+
+    def test_path_traversal_prevention_robust(self):
+        """Test robust prevention of path traversal using os.path.normpath."""
+        marker = source_code_bundler.SEPARATOR_MARKER
+
+        # We attempt to write to the parent of output_dir (which is test_dir)
+        traversal_content = (
+            f"// {marker} START FILE: ../outside.txt\n"
+            "malicious content\n"
+            f"// {marker} END FILE: ../outside.txt\n\n"
+            f"// {marker} START FILE: subdir/../../outside_deep.txt\n"
+            "deep malicious content\n"
+            f"// {marker} END FILE: subdir/../../outside_deep.txt\n\n"
+            f"// {marker} START FILE: safe/../safe.txt\n"
+            "safe content\n"
+            f"// {marker} END FILE: safe/../safe.txt\n\n"
+        )
+
+        with open(self.bundle_file, "w", encoding="utf-8") as f:
+            f.write(traversal_content)
+
+        source_code_bundler.split_source_code(self.bundle_file, self.output_dir)
+
+        # Check malicious files do NOT exist in the parent directory
+        outside_path = os.path.join(self.test_dir, "outside.txt")
+        self.assertFalse(
+            os.path.exists(outside_path), "Traversal ../outside.txt should be blocked"
+        )
+
+        outside_deep_path = os.path.join(self.test_dir, "outside_deep.txt")
+        self.assertFalse(
+            os.path.exists(outside_deep_path),
+            "Traversal subdir/../../outside_deep.txt should be blocked",
+        )
+
+        # Check safe file DOES exist (safe/../safe.txt -> safe.txt)
+        safe_path = os.path.join(self.output_dir, "safe.txt")
+        self.assertTrue(
+            os.path.exists(safe_path),
+            "Safe traversal safe/../safe.txt should be allowed",
+        )
 
     def test_path_handling_for_root_directories(self):
         """Test path handling with nested and root-level files."""

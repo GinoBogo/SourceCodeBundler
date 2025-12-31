@@ -249,50 +249,55 @@ def split_source_code(source_file, output_dir, progress_callback=None):
 
             original_path_str = start_match.group(2)
 
-            # Parse as POSIX path
-            posix_path = PurePosixPath(original_path_str)
-
-            # Remove leading ./
-            posix_parts = list(posix_path.parts)
-            if posix_parts and posix_parts[0] == ".":
-                posix_parts = posix_parts[1:]
-
-            # Check path traversal and sanitize
-            safe_parts = []
-            for part in posix_parts:
-                if part == "..":
-                    # Skip parent refs
-                    continue
-                # Skip root indicators to ensure path is relative
-                if part.startswith("/") or part.startswith("\\") or ":" in part:
-                    continue
-                elif part and part != ".":
-                    safe_parts.append(part)
-
-            # Platform-specific path
-            if safe_parts:
-                safe_path_str = os.path.join(*safe_parts)
-                safe_path = Path(safe_path_str)
-            else:
-                safe_path = Path(".")
-
-            target_path = output_path / safe_path
-            target_path.parent.mkdir(parents=True, exist_ok=True)
-
-            # Avoid overwriting existing files by appending a counter
-            if target_path.exists():
-                stem = target_path.stem
-                suffix = target_path.suffix
-                counter = 1
-                while target_path.exists():
-                    target_path = target_path.with_name(f"{stem}_{counter}{suffix}")
-                    counter += 1
-                print(f"Duplicate filename detected. Renamed to: {target_path.name}")
-
             try:
+                # Sanitize path using os.path.abspath and os.path.commonpath
+                # First, treat the path as POSIX to handle forward slashes from the bundle format
+                posix_path = PurePosixPath(original_path_str)
+
+                # If absolute, make it relative to root (strip leading /)
+                if posix_path.is_absolute():
+                    posix_path = posix_path.relative_to(posix_path.root)
+
+                # Convert to string (this keeps forward slashes)
+                rel_path_str = str(posix_path)
+
+                # Ensure the path is not absolute for the current OS (e.g. drive
+                # letters on Windows)
+                if os.path.isabs(rel_path_str):
+                    print(f"Skipping absolute path: {original_path_str}")
+                    current_file = None
+                    current_line += 1
+                    continue
+
+                # Resolve full path
+                full_path = os.path.abspath(os.path.join(output_dir, rel_path_str))
+                base_path = os.path.abspath(output_dir)
+
+                # Check if the resolved path is within the output directory
+                if not os.path.commonpath([base_path, full_path]) == base_path:
+                    print(f"Skipping unsafe path: {original_path_str}")
+                    current_file = None
+                    current_line += 1
+                    continue
+
+                target_path = Path(full_path)
+                target_path.parent.mkdir(parents=True, exist_ok=True)
+
+                # Avoid overwriting existing files by appending a counter
+                if target_path.exists():
+                    stem = target_path.stem
+                    suffix = target_path.suffix
+                    counter = 1
+                    while target_path.exists():
+                        target_path = target_path.with_name(f"{stem}_{counter}{suffix}")
+                        counter += 1
+                    print(
+                        f"Duplicate filename detected. Renamed to: {target_path.name}"
+                    )
+
                 current_file = target_path.open("w", encoding="utf-8", newline="")
             except Exception as e:
-                print(f"Cannot create file {target_path}: {e}")
+                print(f"Error processing path {original_path_str}: {e}")
                 current_file = None
 
             # Skip START line
