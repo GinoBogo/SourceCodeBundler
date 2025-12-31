@@ -8,6 +8,7 @@ A versatile Python utility designed to merge multiple source code files into a s
 - **Split Mode**: Reconstructs the original file and directory structure from a bundled file.
 - **Language Support**: Automatically handles comment syntax for headers in Python (`.py`), Rust (`.rs`), C/C++ (`.c`, `.h`, `.cpp`, `.hpp`), and CSS (`.css`).
 - **GUI Interface**: User-friendly graphical interface built with Tkinter.
+- **CLI Support**: Command-line interface for batch processing and automation.
 - **Configurable**: Select specific file extensions to include/exclude via the Options menu.
 - **Safety**: Checks for path traversal attempts during the split process.
 
@@ -28,7 +29,7 @@ A versatile Python utility designed to merge multiple source code files into a s
 
 ## Usage
 
-Run the script from the terminal:
+Run the script without arguments to launch the Graphical User Interface (GUI):
 
 ```bash
 ./source_code_bundler.py
