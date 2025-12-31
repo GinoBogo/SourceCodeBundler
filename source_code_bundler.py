@@ -121,12 +121,43 @@ def merge_source_code(
             if file_path.suffix.lower() in extensions:
                 matching_files.append(file_path)
 
-    total_files = len(matching_files)
+    # Pre-calculate display paths and sort by path
+    files_with_paths = []
+    source_parent = source_path.parent
+
+    for file_path in matching_files:
+        if source_parent == source_path:
+            # Handle root source_dir
+            rel_path = file_path.relative_to(source_path)
+            rel_path_display = (
+                f"./{source_path.name}/{rel_path}"
+                if source_path.name
+                else f"./{rel_path}"
+            )
+        else:
+            rel_path = file_path.relative_to(source_parent)
+            rel_path_display = f"./{rel_path}"
+
+        # Use POSIX paths
+        posix_rel_path = PurePosixPath(rel_path_display)
+        rel_path_display = str(posix_rel_path)
+        files_with_paths.append((file_path, rel_path_display))
+
+    files_with_paths.sort(key=lambda x: x[1])
+    total_files = len(files_with_paths)
 
     with output_path.open("w", encoding="utf-8", newline="") as outfile:
-        for index, file_path in enumerate(matching_files, 1):
+        if total_files > 0:
+            # Write File Index
+            outfile.write(f"# {SEPARATOR_MARKER} FILE INDEX START\n")
+            outfile.write(f"# Total Files: {total_files}\n")
+            outfile.write("# \n")
+            for _, display_path in files_with_paths:
+                outfile.write(f"# {display_path}\n")
+            outfile.write(f"# {SEPARATOR_MARKER} FILE INDEX END\n\n")
+
+        for index, (file_path, rel_path_display) in enumerate(files_with_paths, 1):
             # Initialize variables
-            rel_path_display = str(file_path.name)
             comment_char = "//"
 
             # Default error markers to prevent UnboundLocalError
@@ -140,26 +171,6 @@ def merge_source_code(
                 suffix = file_path.suffix.lower()
                 comment_char = COMMENT_SYNTAX.get(suffix, "//")
                 is_css_file = suffix == ".css"
-
-                # Calculate relative path preserving source directory name
-                source_parent = source_path.parent
-
-                # Path relative to parent
-                if source_parent == source_path:
-                    # Handle root source_dir
-                    rel_path = file_path.relative_to(source_path)
-                    rel_path_display = (
-                        f"./{source_path.name}/{rel_path}"
-                        if source_path.name
-                        else f"./{rel_path}"
-                    )
-                else:
-                    rel_path = file_path.relative_to(source_parent)
-                    rel_path_display = f"./{rel_path}"
-
-                # Use POSIX paths
-                posix_rel_path = PurePosixPath(rel_path_display)
-                rel_path_display = str(posix_rel_path)
 
                 # Construct markers
                 if is_css_file:
