@@ -391,7 +391,7 @@ class TestSourceCodeBundler(unittest.TestCase):
         # Create file with invalid UTF-8 sequence
         bin_path = os.path.join(self.src_dir, "binary.dat")
         with open(bin_path, "wb") as f:
-            f.write(b"\x80\x81\xff")  # Invalid UTF-8
+            f.write(b"\x00\x00\x00\x01")  # Null bytes indicating binary
 
         source_code_bundler.merge_source_code(
             self.src_dir, self.bundle_file, extensions=[".dat"]
@@ -403,6 +403,25 @@ class TestSourceCodeBundler(unittest.TestCase):
         self.assertIn("binary.dat", content)
         self.assertIn("ERROR START", content)
         self.assertIn("Cannot read file", content)
+
+    def test_encoding_fallback(self):
+        """Test that files with non-UTF-8 encoding (e.g. Latin-1) are handled."""
+        # Create a file with Latin-1 content that is invalid in UTF-8
+        # 'café' in Latin-1 is b'caf\xe9'. \xe9 is invalid start byte in UTF-8.
+        latin1_content = b"caf\xe9"
+        file_path = os.path.join(self.src_dir, "latin1.txt")
+        with open(file_path, "wb") as f:
+            f.write(latin1_content)
+
+        source_code_bundler.merge_source_code(
+            self.src_dir, self.bundle_file, extensions=[".txt"]
+        )
+
+        with open(self.bundle_file, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        # The content should be converted to UTF-8 in the bundle
+        self.assertIn("café", content)
 
     def test_error_markers_defined_before_exception_robust(self):
         """Test error markers are defined before any exception can occur."""

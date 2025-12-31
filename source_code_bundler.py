@@ -179,8 +179,25 @@ def merge_source_code(
                 outfile.write(f"{start_marker}\n")
 
                 # Write Content
-                with file_path.open("r", encoding="utf-8", newline="") as f:
-                    content = f.read()
+                content = None
+                # Try common encodings
+                for encoding in ["utf-8", "cp1252", "latin-1"]:
+                    try:
+                        with file_path.open("r", encoding=encoding, newline="") as f:
+                            temp_content = f.read()
+                            # Simple binary check: null bytes are rare in source code
+                            if "\0" in temp_content:
+                                raise ValueError("Binary content detected")
+                            content = temp_content
+                        break
+                    except (UnicodeDecodeError, ValueError):
+                        continue
+
+                if content is None:
+                    raise UnicodeDecodeError(
+                        "utf-8", b"", 0, 1, "Failed to decode with supported encodings"
+                    )
+
                 outfile.write(content)
                 if content and not content.endswith(("\n", "\r")):
                     outfile.write("\n")
