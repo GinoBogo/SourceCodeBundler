@@ -11,9 +11,11 @@ License: MIT
 Version: 1.0
 """
 
+import argparse
 import json
 import os
 import re
+import sys
 import tkinter as tk
 from pathlib import Path, PurePosixPath
 from tkinter import filedialog, messagebox, ttk
@@ -337,10 +339,59 @@ def split_source_code(source_file, output_dir, progress_callback=None):
         progress_callback(total_lines, total_lines)
 
 
+# ==============================================================================
+# Execution Modes
+
+
+def run_cli():
+    """Parses command-line arguments and executes the requested operation."""
+    parser = argparse.ArgumentParser(description="Source Code Bundler")
+
+    group = parser.add_mutually_exclusive_group(required=True)
+
+    group.add_argument(
+        "--merge",
+        nargs=2,
+        metavar=("SOURCE_DIR", "OUTPUT_FILE"),
+        help="Merge source files from directory to output file",
+    )
+
+    group.add_argument(
+        "--split",
+        nargs=2,
+        metavar=("SOURCE_FILE", "OUTPUT_DIR"),
+        help="Split bundled file to output directory",
+    )
+
+    parser.add_argument(
+        "--extensions",
+        nargs="+",
+        default=DEFAULT_EXTENSIONS,
+        help=f"List of file extensions to include (default: {' '.join(DEFAULT_EXTENSIONS)})",
+    )
+
+    args = parser.parse_args()
+
+    if args.merge:
+        source, output = args.merge
+        print(f"Merging files from '{source}' to '{output}'...")
+        try:
+            merge_source_code(source, output, extensions=args.extensions)
+            print("Merge completed successfully.")
+        except Exception as e:
+            print(f"Error during merge: {e}")
+    elif args.split:
+        source, output = args.split
+        print(f"Splitting files from '{source}' to '{output}'...")
+        try:
+            split_source_code(source, output)
+            print("Split completed successfully.")
+        except Exception as e:
+            print(f"Error during split: {e}")
+
+
 def run_gui():
     """Initializes and runs the graphical user interface."""
-    # ==========================================================================
-    # Main GUI
     root = tk.Tk()
     root.title("Source Code Bundler")
 
@@ -636,4 +687,7 @@ def run_gui():
 
 
 if __name__ == "__main__":
-    run_gui()
+    if len(sys.argv) > 1:
+        run_cli()
+    else:
+        run_gui()
