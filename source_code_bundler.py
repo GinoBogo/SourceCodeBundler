@@ -459,6 +459,11 @@ def run_gui():
         for ext in DEFAULT_EXTENSIONS
     }
 
+    merge_source_history = config.get("merge_source_history", [])
+    merge_dest_history = config.get("merge_dest_history", [])
+    split_source_history = config.get("split_source_history", [])
+    split_dest_history = config.get("split_dest_history", [])
+
     def select_source_action():
         """Open file dialog for source selection based on current mode."""
         if is_split_mode.get():
@@ -533,6 +538,27 @@ def run_gui():
             dialog, text="Close", command=dialog.destroy, width=10, cursor="hand2"
         ).pack(pady=20)
 
+    def update_history(src, dst):
+        """Updates the history for source and destination comboboxes."""
+        if is_split_mode.get():
+            s_hist = split_source_history
+            d_hist = split_dest_history
+        else:
+            s_hist = merge_source_history
+            d_hist = merge_dest_history
+
+        if src in s_hist:
+            s_hist.remove(src)
+        s_hist.insert(0, src)
+        del s_hist[10:]
+        source_entry["values"] = s_hist
+
+        if dst in d_hist:
+            d_hist.remove(dst)
+        d_hist.insert(0, dst)
+        del d_hist[10:]
+        destination_entry["values"] = d_hist
+
     def execute_action():
         """Execute merge or split operation based on current mode."""
         src = source_var.get()
@@ -564,6 +590,7 @@ def run_gui():
                     return
 
                 split_source_code(src, dst, progress_callback=update_progress)
+                update_history(src, dst)
                 messagebox.showinfo(
                     "Operation Complete", f"Successfully split source code into:\n{dst}"
                 )
@@ -591,6 +618,7 @@ def run_gui():
                     extensions=active_extensions,
                     progress_callback=update_progress,
                 )
+                update_history(src, dst)
                 messagebox.showinfo(
                     "Operation Complete",
                     f"Successfully bundled source code into:\n{dst}",
@@ -610,9 +638,13 @@ def run_gui():
         if is_split_mode.get():
             source_label.config(text="Source File:")
             destination_label.config(text="Output Directory:")
+            source_entry["values"] = split_source_history
+            destination_entry["values"] = split_dest_history
         else:
             source_label.config(text="Source Directory:")
             destination_label.config(text="Output File:")
+            source_entry["values"] = merge_source_history
+            destination_entry["values"] = merge_dest_history
 
     main_frame = ttk.Frame(root, padding=10)
     main_frame.pack(fill=tk.BOTH, expand=True)
@@ -625,7 +657,9 @@ def run_gui():
     source_label = ttk.Label(input_frame, text="Source Directory:")
     source_label.grid(row=0, column=0, sticky=tk.E, pady=5)
 
-    source_entry = ttk.Entry(input_frame, textvariable=source_var)
+    source_entry = ttk.Combobox(
+        input_frame, textvariable=source_var, values=merge_source_history
+    )
     source_entry.grid(row=0, column=1, sticky=tk.W + tk.E, padx=5)
 
     source_button = ttk.Button(
@@ -640,7 +674,9 @@ def run_gui():
     destination_label = ttk.Label(input_frame, text="Output File:")
     destination_label.grid(row=1, column=0, sticky=tk.E, pady=5)
 
-    destination_entry = ttk.Entry(input_frame, textvariable=dest_var)
+    destination_entry = ttk.Combobox(
+        input_frame, textvariable=dest_var, values=merge_dest_history
+    )
     destination_entry.grid(row=1, column=1, sticky=tk.W + tk.E, padx=5)
 
     destination_button = ttk.Button(
@@ -706,6 +742,10 @@ def run_gui():
         """Save configuration and close the application."""
         config["geometry"] = root.geometry()
         config["extensions"] = {ext: var.get() for ext, var in extension_vars.items()}
+        config["merge_source_history"] = merge_source_history
+        config["merge_dest_history"] = merge_dest_history
+        config["split_source_history"] = split_source_history
+        config["split_dest_history"] = split_dest_history
         save_config(config)
         root.destroy()
 
