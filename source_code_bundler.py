@@ -580,6 +580,11 @@ def run_gui():
 
     def toggle_operation_mode():
         """Update UI labels when operation mode changes."""
+        current_source = source_var.get()
+        current_dest = dest_var.get()
+        source_var.set(current_dest)
+        dest_var.set(current_source)
+
         if is_split_mode.get():
             source_label.config(text="Source File:")
             destination_label.config(text="Output Directory:")
