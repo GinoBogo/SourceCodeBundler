@@ -25,10 +25,14 @@ from tkinter import filedialog, messagebox, ttk
 # Constants
 
 CONFIG_FILE = "source_code_bundler.json"
-DEFAULT_EXTENSIONS = [".py", ".rs", ".c", ".h", ".cpp", ".hpp", ".css"]
+
 SEPARATOR_MARKER = "[[ SCB ]]"
+
 CHECKED_CHAR = "✓"
+
 UNCHECKED_CHAR = "☐"
+
+DEFAULT_EXTENSIONS = [".py", ".rs", ".c", ".h", ".cpp", ".hpp", ".css"]
 
 COMMENT_SYNTAX = {
     ".py": "#",
@@ -251,30 +255,17 @@ def split_source_code(source_file, output_dir, progress_callback=None):
             if posix_parts and posix_parts[0] == ".":
                 posix_parts = posix_parts[1:]
 
-            # Check path traversal
+            # Check path traversal and sanitize
             safe_parts = []
             for part in posix_parts:
                 if part == "..":
                     # Skip parent refs
                     continue
+                # Skip root indicators to ensure path is relative
+                if part.startswith("/") or part.startswith("\\") or ":" in part:
+                    continue
                 elif part and part != ".":
                     safe_parts.append(part)
-
-            # Check absolute path
-            is_absolute_looking = False
-            if safe_parts:
-                # Unix absolute path
-                if original_path_str.startswith("/"):
-                    is_absolute_looking = True
-                # Windows absolute path
-                elif len(original_path_str) > 1 and original_path_str[1] == ":":
-                    is_absolute_looking = True
-                elif original_path_str.startswith("\\\\"):
-                    is_absolute_looking = True
-
-            if is_absolute_looking and safe_parts:
-                # Keep filename only
-                safe_parts = [safe_parts[-1]] if safe_parts else []
 
             # Platform-specific path
             if safe_parts:
@@ -285,6 +276,16 @@ def split_source_code(source_file, output_dir, progress_callback=None):
 
             target_path = output_path / safe_path
             target_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Avoid overwriting existing files by appending a counter
+            if target_path.exists():
+                stem = target_path.stem
+                suffix = target_path.suffix
+                counter = 1
+                while target_path.exists():
+                    target_path = target_path.with_name(f"{stem}_{counter}{suffix}")
+                    counter += 1
+                print(f"Duplicate filename detected. Renamed to: {target_path.name}")
 
             try:
                 current_file = target_path.open("w", encoding="utf-8")
