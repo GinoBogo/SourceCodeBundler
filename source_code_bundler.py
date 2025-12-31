@@ -27,6 +27,8 @@ from tkinter import filedialog, messagebox, ttk
 CONFIG_FILE = "source_code_bundler.json"
 DEFAULT_EXTENSIONS = [".py", ".rs", ".c", ".h", ".cpp", ".hpp", ".css"]
 SEPARATOR_MARKER = "[[ SCB ]]"
+CHECKED_CHAR = "✓"
+UNCHECKED_CHAR = "☐"
 
 COMMENT_SYNTAX = {
     ".py": "#",
@@ -481,21 +483,6 @@ def run_gui():
         tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
-        # Create checkbox images
-        img_checked = tk.PhotoImage(width=14, height=14)
-        img_unchecked = tk.PhotoImage(width=14, height=14)
-        for img in (img_checked, img_unchecked):
-            img.put("#000000", to=(0, 0, 14, 1))
-            img.put("#000000", to=(0, 13, 14, 14))
-            img.put("#000000", to=(0, 0, 1, 14))
-            img.put("#000000", to=(13, 0, 14, 14))
-            img.put("#FFFFFF", to=(1, 1, 13, 13))
-
-        for i in range(3):
-            img_checked.put("#000000", (3 + i, 6 + i))
-        for i in range(5):
-            img_checked.put("#000000", (5 + i, 8 - i))
-
         def toggle_check(event):
             """Toggle the checkbox state for the selected extension."""
             item_id = tree.identify_row(event.y)
@@ -507,17 +494,19 @@ def run_gui():
             new_val = not current_val
             extension_vars[ext].set(new_val)
 
-            img = img_checked if new_val else img_unchecked
-            tree.item(item_id, image=img)
+            char = CHECKED_CHAR if new_val else UNCHECKED_CHAR
+            tree.item(item_id, text=f" {char} {ext}")
 
         for ext in DEFAULT_EXTENSIONS:
             is_checked = extension_vars[ext].get()
-            img = img_checked if is_checked else img_unchecked
-            tree.insert("", "end", text=f" {ext}", values=(ext,), image=img)
+            char = CHECKED_CHAR if is_checked else UNCHECKED_CHAR
+            tree.insert("", "end", text=f" {char} {ext}", values=(ext,))
 
         tree.bind("<Button-1>", toggle_check)
 
-        ttk.Button(dialog, text="Close", command=dialog.destroy).pack(pady=20)
+        ttk.Button(
+            dialog, text="Close", command=dialog.destroy, width=10, cursor="hand2"
+        ).pack(pady=20)
 
     def execute_action():
         """Execute merge or split operation based on current mode."""
@@ -559,6 +548,14 @@ def run_gui():
                         "Invalid Source", "Source must be a directory in merge mode."
                     )
                     return
+
+                dst_path = Path(dst)
+                if dst_path.exists():
+                    if not messagebox.askyesno(
+                        "Confirm Overwrite",
+                        f"The file '{dst_path.name}' already exists.\nDo you want to overwrite it?",
+                    ):
+                        return
 
                 active_extensions = [
                     ext for ext, var in extension_vars.items() if var.get()
