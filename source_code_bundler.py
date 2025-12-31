@@ -123,7 +123,7 @@ def merge_source_code(
 
     total_files = len(matching_files)
 
-    with output_path.open("w", encoding="utf-8") as outfile:
+    with output_path.open("w", encoding="utf-8", newline="") as outfile:
         for index, file_path in enumerate(matching_files, 1):
             # Initialize variables
             rel_path_display = str(file_path.name)
@@ -179,9 +179,10 @@ def merge_source_code(
                 outfile.write(f"{start_marker}\n")
 
                 # Write Content
-                content = file_path.read_text(encoding="utf-8")
+                with file_path.open("r", encoding="utf-8", newline="") as f:
+                    content = f.read()
                 outfile.write(content)
-                if not content.endswith("\n"):
+                if content and not content.endswith(("\n", "\r")):
                     outfile.write("\n")
 
                 # Write End
@@ -217,7 +218,8 @@ def split_source_code(source_file, output_dir, progress_callback=None):
     output_path.mkdir(parents=True, exist_ok=True)
 
     source_path = Path(source_file)
-    content = source_path.read_text(encoding="utf-8")
+    with source_path.open("r", encoding="utf-8", newline="") as f:
+        content = f.read()
     lines = content.splitlines(keepends=True)
 
     total_lines = len(lines)
@@ -288,7 +290,7 @@ def split_source_code(source_file, output_dir, progress_callback=None):
                 print(f"Duplicate filename detected. Renamed to: {target_path.name}")
 
             try:
-                current_file = target_path.open("w", encoding="utf-8")
+                current_file = target_path.open("w", encoding="utf-8", newline="")
             except Exception as e:
                 print(f"Cannot create file {target_path}: {e}")
                 current_file = None
