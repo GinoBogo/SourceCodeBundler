@@ -85,7 +85,7 @@ def save_file_dialog(title="Save File", filetypes=None):
 def merge_source_code(
     source_dir,
     output_file,
-    extensions=DEFAULT_EXTENSIONS,
+    extensions=None,
     progress_callback=None,
 ):
     """
@@ -98,6 +98,9 @@ def merge_source_code(
         extensions: List of file extensions to include
         progress_callback: Optional callback for progress updates
     """
+    if extensions is None:
+        extensions = DEFAULT_EXTENSIONS
+
     source_path = Path(source_dir).resolve()
     output_path = Path(output_file)
 
