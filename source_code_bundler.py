@@ -180,26 +180,29 @@ def merge_source_code(
             err_msg_prefix = f"{comment_char} {SEPARATOR_MARKER} ERROR:"
             err_end = f"{comment_char} {SEPARATOR_MARKER} ERROR END: {rel_path_display}"
 
-            try:
-                suffix = file_path.suffix.lower()
-                comment_char = COMMENT_SYNTAX.get(suffix, "//")
-                is_css_file = suffix == ".css"
+            suffix = file_path.suffix.lower()
+            comment_char = COMMENT_SYNTAX.get(suffix, "//")
+            is_css_file = suffix == ".css"
 
-                # Construct markers
-                # fmt: off
-                if is_css_file:
-                    start_marker   = f"/* {SEPARATOR_MARKER} START FILE: {rel_path_display} */"
-                    end_marker     = f"/* {SEPARATOR_MARKER} END FILE: {rel_path_display} */"
-                    err_start      = f"/* {SEPARATOR_MARKER} ERROR START: {rel_path_display} */"
-                    err_msg_prefix = f"/* {SEPARATOR_MARKER} ERROR:"
-                    err_end        = f"/* {SEPARATOR_MARKER} ERROR END: {rel_path_display} */"
-                else:
-                    start_marker   = f"{comment_char} {SEPARATOR_MARKER} START FILE: {rel_path_display}"
-                    end_marker     = f"{comment_char} {SEPARATOR_MARKER} END FILE: {rel_path_display}"
-                    err_start      = f"{comment_char} {SEPARATOR_MARKER} ERROR START: {rel_path_display}"
-                    err_msg_prefix = f"{comment_char} {SEPARATOR_MARKER} ERROR:"
-                    err_end        = f"{comment_char} {SEPARATOR_MARKER} ERROR END: {rel_path_display}"
-                    # fmt: on
+            # Construct markers
+            # fmt: off
+            if is_css_file:
+                start_marker   = f"/* {SEPARATOR_MARKER} START FILE: {rel_path_display} */"
+                end_marker     = f"/* {SEPARATOR_MARKER} END FILE: {rel_path_display} */"
+                err_start      = f"/* {SEPARATOR_MARKER} ERROR START: {rel_path_display} */"
+                err_msg_prefix = f"/* {SEPARATOR_MARKER} ERROR:"
+                err_end        = f"/* {SEPARATOR_MARKER} ERROR END: {rel_path_display} */"
+                err_msg_suffix = " */"
+            else:
+                start_marker   = f"{comment_char} {SEPARATOR_MARKER} START FILE: {rel_path_display}"
+                end_marker     = f"{comment_char} {SEPARATOR_MARKER} END FILE: {rel_path_display}"
+                err_start      = f"{comment_char} {SEPARATOR_MARKER} ERROR START: {rel_path_display}"
+                err_msg_prefix = f"{comment_char} {SEPARATOR_MARKER} ERROR:"
+                err_end        = f"{comment_char} {SEPARATOR_MARKER} ERROR END: {rel_path_display}"
+                err_msg_suffix = "" 
+                # fmt: on
+
+            try:
 
                 # Write Start
                 outfile.write(f"{start_marker}\n")
@@ -238,7 +241,7 @@ def merge_source_code(
                     else str(e)
                 )
                 outfile.write(
-                    f"{err_start}\n{err_msg_prefix} {error_msg}\n{err_end}\n\n"
+                    f"{err_start}\n{err_msg_prefix} {error_msg}{err_msg_suffix}\n{err_end}\n\n"
                 )
 
             if progress_callback:
