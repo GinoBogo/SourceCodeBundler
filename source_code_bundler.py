@@ -8,7 +8,7 @@ languages with appropriate comment syntax for headers.
 
 Author: Gino Bogo
 License: MIT
-Version: 1.0
+Version: 1.1
 """
 
 import argparse
@@ -17,6 +17,7 @@ import os
 import re
 import sys
 import tkinter as tk
+from typing import Callable, List, Optional
 from pathlib import Path, PurePosixPath
 from tkinter import filedialog, messagebox, ttk
 
@@ -25,10 +26,10 @@ from tkinter import filedialog, messagebox, ttk
 # Constants
 
 # fmt: off
-CONFIG_FILE      = "source_code_bundler.json"
-SEPARATOR_MARKER = "[[ SCB ]]"
-CHECKED_CHAR     = "✓"
-UNCHECKED_CHAR   = "☐"
+CONFIG_FILE        = "source_code_bundler.json"
+SEPARATOR_MARKER   = "[[ SCB ]]"
+GUI_CHECKED_CHAR   = "✓"
+GUI_UNCHECKED_CHAR = "☐"
 
 DEFAULT_EXTENSIONS = [
     ".py",
@@ -62,8 +63,12 @@ ERROR_END_PATTERN     = re.compile(r"^(\S+)\s+\[\[ SCB \]\] ERROR END:\s+(.+?)(?
 # Configuration Helpers
 
 
-def load_config():
-    """Loads configuration from the JSON file."""
+def load_config() -> dict:
+    """Loads configuration from the JSON file.
+
+    Returns:
+        dict: Configuration dictionary, empty dict if file doesn't exist or is invalid
+    """
     try:
         with open(CONFIG_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
@@ -71,8 +76,12 @@ def load_config():
         return {}
 
 
-def save_config(config):
-    """Saves configuration to the JSON file."""
+def save_config(config: dict) -> None:
+    """Saves configuration to the JSON file.
+
+    Args:
+        config: Configuration dictionary to save
+    """
     try:
         with open(CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump(config, f, indent=4)
@@ -81,30 +90,22 @@ def save_config(config):
 
 
 # ==============================================================================
-# GUI Helpers
+# File I/O Helpers
 
 
-def select_directory(title="Select Directory"):
-    """Helper function to select a directory with a dialog."""
-    return filedialog.askdirectory(title=title)
+def read_file_content(file_path: Path) -> str:
+    """Attempts to read file content using multiple encodings.
 
+    Args:
+        file_path: Path object pointing to the file to read
 
-def select_file(title="Select File", filetypes=None):
-    """Helper function to select a file with a dialog."""
-    return filedialog.askopenfilename(title=title, filetypes=filetypes)
+    Returns:
+        str: File content as string
 
-
-def save_file_dialog(title="Save File", filetypes=None):
-    """Helper function to save a file with a dialog."""
-    return filedialog.asksaveasfilename(title=title, filetypes=filetypes)
-
-
-# ==============================================================================
-# Core Logic
-
-
-def read_file_content(file_path):
-    """Attempts to read file content using multiple encodings."""
+    Raises:
+        UnicodeDecodeError: If file cannot be decoded with supported encodings
+        ValueError: If binary content is detected
+    """
     for encoding in ["utf-8", "cp1252", "latin-1"]:
         try:
             with file_path.open("r", encoding=encoding, newline="") as f:
@@ -119,12 +120,16 @@ def read_file_content(file_path):
     )
 
 
+# ==============================================================================
+# Core Logic Functions
+
+
 def merge_source_code(
-    source_dir,
-    output_file,
-    extensions=None,
-    progress_callback=None,
-):
+    source_dir: str,
+    output_file: str,
+    extensions: Optional[List[str]] = None,
+    progress_callback: Optional[Callable] = None,
+) -> None:
     """
     Recursively scans a directory for source files with specified extensions,
     combines them into a single output file with descriptive headers.
@@ -132,8 +137,8 @@ def merge_source_code(
     Args:
         source_dir: Directory to scan for source files
         output_file: Path to the output combined file
-        extensions: List of file extensions to include
-        progress_callback: Optional callback for progress updates
+        extensions: List of file extensions to include (defaults to DEFAULT_EXTENSIONS)
+        progress_callback: Optional callback for progress updates (current, total)
     """
     if extensions is None:
         extensions = DEFAULT_EXTENSIONS
@@ -151,7 +156,7 @@ def merge_source_code(
                 matching_files.append(file_path)
 
     # Pre-calculate display paths and sort by path
-    files_with_paths = []
+    file_entries = []
     source_parent = source_path.parent
 
     for file_path in matching_files:
@@ -170,29 +175,29 @@ def merge_source_code(
         # Use POSIX paths
         posix_rel_path = PurePosixPath(rel_path_display)
         rel_path_display = str(posix_rel_path)
-        files_with_paths.append((file_path, rel_path_display))
+        file_entries.append((file_path, rel_path_display))
 
-    files_with_paths.sort(key=lambda x: x[1])
-    total_files = len(files_with_paths)
+    file_entries.sort(key=lambda x: x[1])
+    total_files = len(file_entries)
 
     # Calculate max path length for alignment
-    max_path_len = max((len(dp) for _, dp in files_with_paths), default=0)
+    max_path_len = max((len(dp) for _, dp in file_entries), default=0)
 
     # Pre-read files to generate index statistics and cache content
-    file_results = {}
+    content_cache = {}
     max_size_len = 0
     max_lines_len = 0
-    for file_path, _ in files_with_paths:
+    for file_path, _ in file_entries:
         try:
             content = read_file_content(file_path)
             size_kb = len(content.encode("utf-8")) / 1024
             lines = content.count("\n") + 1
             size_str = f"{size_kb:.1f}"
-            file_results[file_path] = (content, size_str, lines, None)
+            content_cache[file_path] = (content, size_str, lines, None)
             max_size_len = max(max_size_len, len(size_str))
             max_lines_len = max(max_lines_len, len(str(lines)))
         except Exception as e:
-            file_results[file_path] = (None, None, 0, e)
+            content_cache[file_path] = (None, None, 0, e)
 
     with output_path.open("w", encoding="utf-8", newline="") as outfile:
         if total_files > 0:
@@ -200,8 +205,8 @@ def merge_source_code(
             outfile.write(f"# {SEPARATOR_MARKER} FILE INDEX START\n")
             outfile.write(f"# Total Files: {total_files}\n")
             outfile.write("# \n")
-            for file_path, display_path in files_with_paths:
-                content, size_str, lines, error = file_results[file_path]
+            for file_path, display_path in file_entries:
+                content, size_str, lines, error = content_cache[file_path]
                 if content is not None:
                     outfile.write(
                         f"# {display_path.ljust(max_path_len)} | SIZE: {size_str:>{max_size_len}}kb | LINES: {lines:>{max_lines_len}}\n"
@@ -212,17 +217,11 @@ def merge_source_code(
                     )
             outfile.write(f"# {SEPARATOR_MARKER} FILE INDEX END\n\n")
 
-        for index, (file_path, rel_path_display) in enumerate(files_with_paths, 1):
+        for index, (file_path, rel_path_display) in enumerate(file_entries, 1):
             # Initialize variables
             comment_char = "//"
 
             # Default error markers to prevent UnboundLocalError
-            err_start = (
-                f"{comment_char} {SEPARATOR_MARKER} ERROR START: {rel_path_display}"
-            )
-            err_msg_prefix = f"{comment_char} {SEPARATOR_MARKER} ERROR:"
-            err_end = f"{comment_char} {SEPARATOR_MARKER} ERROR END: {rel_path_display}"
-
             suffix = file_path.suffix.lower()
             comment_char = COMMENT_SYNTAX.get(suffix, "//")
             is_css_file = suffix == ".css"
@@ -246,12 +245,11 @@ def merge_source_code(
                 # fmt: on
 
             try:
-
                 # Write Start
                 outfile.write(f"{start_marker}\n")
 
                 # Write Content (from cache)
-                content, _, _, error = file_results[file_path]
+                content, _, _, error = content_cache[file_path]
                 if error:
                     raise error
 
@@ -276,7 +274,12 @@ def merge_source_code(
                 progress_callback(index, total_files)
 
 
-def split_source_code(source_file, output_dir, overwrite=False, progress_callback=None):
+def split_source_code(
+    source_file: str,
+    output_dir: str,
+    overwrite: bool = False,
+    progress_callback: Optional[Callable] = None,
+) -> None:
     """
     Reconstructs individual source files from a combined file created by
     merge_source_code.
@@ -285,7 +288,7 @@ def split_source_code(source_file, output_dir, overwrite=False, progress_callbac
         source_file: Combined source file to split
         output_dir: Directory where individual files will be created
         overwrite: If True, overwrite existing files instead of renaming
-        progress_callback: Optional callback for progress updates
+        progress_callback: Optional callback for progress updates (current, total)
     """
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
@@ -317,7 +320,8 @@ def split_source_code(source_file, output_dir, overwrite=False, progress_callbac
 
             try:
                 # Sanitize path using os.path.abspath and os.path.commonpath
-                # First, treat the path as POSIX to handle forward slashes from the bundle format
+                # First, treat the path as POSIX to handle forward slashes from
+                # the bundle format
                 posix_path = PurePosixPath(original_path_str)
 
                 # If absolute, make it relative to root (strip leading /)
@@ -327,8 +331,7 @@ def split_source_code(source_file, output_dir, overwrite=False, progress_callbac
                 # Convert to string (this keeps forward slashes)
                 rel_path_str = str(posix_path)
 
-                # Ensure the path is not absolute for the current OS (e.g. drive
-                # letters on Windows)
+                # Ensure the path is not absolute for the current OS
                 if os.path.isabs(rel_path_str):
                     print(f"Skipping absolute path: {original_path_str}")
                     current_file = None
@@ -416,10 +419,145 @@ def split_source_code(source_file, output_dir, overwrite=False, progress_callbac
 
 
 # ==============================================================================
+# GUI Helper Functions
+
+
+def select_directory(title: str = "Select Directory") -> str:
+    """Opens a directory selection dialog.
+
+    Args:
+        title: Dialog window title
+
+    Returns:
+        str: Selected directory path or empty string if canceled
+    """
+    return filedialog.askdirectory(title=title)
+
+
+def select_file(title: str = "Select File", filetypes: Optional[List] = None) -> str:
+    """Opens a file selection dialog.
+
+    Args:
+        title: Dialog window title
+        filetypes: List of file type tuples [(description, pattern)]
+
+    Returns:
+        str: Selected file path or empty string if canceled
+    """
+    return filedialog.askopenfilename(title=title, filetypes=filetypes)
+
+
+def save_file_dialog(title: str = "Save File", filetypes: Optional[List] = None) -> str:
+    """Opens a save file dialog.
+
+    Args:
+        title: Dialog window title
+        filetypes: List of file type tuples [(description, pattern)]
+
+    Returns:
+        str: Selected save path or empty string if canceled
+    """
+    return filedialog.asksaveasfilename(title=title, filetypes=filetypes)
+
+
+# ==============================================================================
+# GUI Callback Functions
+
+
+def update_progress(
+    current: int,
+    total: int,
+    progress_var: tk.DoubleVar,
+    root: tk.Tk,
+) -> None:
+    """Update progress bar based on current progress.
+
+    Args:
+        current: Current progress value
+        total: Total value for 100% completion
+        progress_var: Progress bar variable
+        root: Tkinter root window
+    """
+    if total > 0:
+        percentage = (current / total) * 100
+        progress_var.set(percentage)
+        root.update_idletasks()
+
+
+def toggle_checkbox(
+    event: tk.Event,
+    tree: ttk.Treeview,
+    extension_vars: dict,
+) -> None:
+    """Toggle the checkbox state for the selected extension.
+
+    Args:
+        event: Mouse click event
+        tree: Treeview widget containing extensions
+        extension_vars: Dictionary of extension BooleanVars
+    """
+    item_id = tree.identify_row(event.y)
+    if not item_id:
+        return
+
+    ext = tree.item(item_id, "values")[0]
+    current_val = extension_vars[ext].get()
+    new_val = not current_val
+    extension_vars[ext].set(new_val)
+
+    char = GUI_CHECKED_CHAR if new_val else GUI_UNCHECKED_CHAR
+    tree.item(item_id, text=f" {char} {ext}")
+
+
+def update_history(
+    src: str,
+    dst: str,
+    is_split_mode: tk.BooleanVar,
+    source_entry: ttk.Combobox,
+    destination_entry: ttk.Combobox,
+    merge_source_history: list,
+    merge_dest_history: list,
+    split_source_history: list,
+    split_dest_history: list,
+) -> None:
+    """Updates the history for source and destination comboboxes.
+
+    Args:
+        src: Source path
+        dst: Destination path
+        is_split_mode: BooleanVar indicating split mode
+        source_entry: Source combobox widget
+        destination_entry: Destination combobox widget
+        merge_source_history: Merge mode source history list
+        merge_dest_history: Merge mode destination history list
+        split_source_history: Split mode source history list
+        split_dest_history: Split mode destination history list
+    """
+    if is_split_mode.get():
+        s_hist = split_source_history
+        d_hist = split_dest_history
+    else:
+        s_hist = merge_source_history
+        d_hist = merge_dest_history
+
+    if src in s_hist:
+        s_hist.remove(src)
+    s_hist.insert(0, src)
+    del s_hist[10:]
+    source_entry["values"] = s_hist
+
+    if dst in d_hist:
+        d_hist.remove(dst)
+    d_hist.insert(0, dst)
+    del d_hist[10:]
+    destination_entry["values"] = d_hist
+
+
+# ==============================================================================
 # Execution Modes
 
 
-def run_cli():
+def run_cli() -> None:
     """Parses command-line arguments and executes the requested operation."""
     parser = argparse.ArgumentParser(description="Source Code Bundler")
 
@@ -446,6 +584,12 @@ def run_cli():
         help=f"List of file extensions to include (default: {' '.join(DEFAULT_EXTENSIONS)})",
     )
 
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Overwrite existing files in split mode",
+    )
+
     args = parser.parse_args()
 
     if args.merge:
@@ -460,13 +604,13 @@ def run_cli():
         source, output = args.split
         print(f"Splitting files from '{source}' to '{output}'...")
         try:
-            split_source_code(source, output)
+            split_source_code(source, output, overwrite=args.overwrite)
             print("Split completed successfully.")
         except Exception as e:
             print(f"Error during split: {e}")
 
 
-def run_gui():
+def run_gui() -> None:
     """Initializes and runs the graphical user interface."""
     root = tk.Tk()
     root.title("Source Code Bundler")
@@ -503,9 +647,9 @@ def run_gui():
     is_split_mode = tk.BooleanVar(value=False)
     overwrite_mode = tk.BooleanVar(value=config.get("overwrite_mode", False))
     progress_var = tk.DoubleVar()
-    saved_extensions = config.get("extensions", {})
+    extensions_config = config.get("extensions", {})
     extension_vars = {
-        ext: tk.BooleanVar(value=saved_extensions.get(ext, True))
+        ext: tk.BooleanVar(value=extensions_config.get(ext, True))
         for ext in DEFAULT_EXTENSIONS
     }
 
@@ -514,7 +658,7 @@ def run_gui():
     split_source_history = config.get("split_source_history", [])
     split_dest_history = config.get("split_dest_history", [])
 
-    def select_source_action():
+    def select_source() -> None:
         """Open file dialog for source selection based on current mode."""
         if is_split_mode.get():
             selected = select_file(
@@ -527,7 +671,7 @@ def run_gui():
         if selected:
             source_var.set(selected)
 
-    def select_destination_action():
+    def select_destination() -> None:
         """Open file dialog for destination selection based on current mode."""
         if is_split_mode.get():
             selected = select_directory("Select Output Directory")
@@ -537,14 +681,7 @@ def run_gui():
         if selected:
             dest_var.set(selected)
 
-    def update_progress(current, total):
-        """Update progress bar based on current progress."""
-        if total > 0:
-            percentage = (current / total) * 100
-            progress_var.set(percentage)
-            root.update_idletasks()
-
-    def options_action():
+    def show_options() -> None:
         """Open a dialog to select file extensions."""
         dialog = tk.Toplevel(root)
         dialog.title("Options")
@@ -563,53 +700,18 @@ def run_gui():
         tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
-        def toggle_check(event):
-            """Toggle the checkbox state for the selected extension."""
-            item_id = tree.identify_row(event.y)
-            if not item_id:
-                return
-
-            ext = tree.item(item_id, "values")[0]
-            current_val = extension_vars[ext].get()
-            new_val = not current_val
-            extension_vars[ext].set(new_val)
-
-            char = CHECKED_CHAR if new_val else UNCHECKED_CHAR
-            tree.item(item_id, text=f" {char} {ext}")
-
         for ext in DEFAULT_EXTENSIONS:
             is_checked = extension_vars[ext].get()
-            char = CHECKED_CHAR if is_checked else UNCHECKED_CHAR
+            char = GUI_CHECKED_CHAR if is_checked else GUI_UNCHECKED_CHAR
             tree.insert("", "end", text=f" {char} {ext}", values=(ext,))
 
-        tree.bind("<Button-1>", toggle_check)
+        tree.bind("<Button-1>", lambda e: toggle_checkbox(e, tree, extension_vars))
 
         ttk.Button(
             dialog, text="Close", command=dialog.destroy, width=10, cursor="hand2"
         ).pack(pady=20)
 
-    def update_history(src, dst):
-        """Updates the history for source and destination comboboxes."""
-        if is_split_mode.get():
-            s_hist = split_source_history
-            d_hist = split_dest_history
-        else:
-            s_hist = merge_source_history
-            d_hist = merge_dest_history
-
-        if src in s_hist:
-            s_hist.remove(src)
-        s_hist.insert(0, src)
-        del s_hist[10:]
-        source_entry["values"] = s_hist
-
-        if dst in d_hist:
-            d_hist.remove(dst)
-        d_hist.insert(0, dst)
-        del d_hist[10:]
-        destination_entry["values"] = d_hist
-
-    def execute_action():
+    def run_operation() -> None:
         """Execute merge or split operation based on current mode."""
         src = source_var.get()
         dst = dest_var.get()
@@ -643,9 +745,21 @@ def run_gui():
                     src,
                     dst,
                     overwrite=overwrite_mode.get(),
-                    progress_callback=update_progress,
+                    progress_callback=lambda c, t: update_progress(
+                        c, t, progress_var, root
+                    ),
                 )
-                update_history(src, dst)
+                update_history(
+                    src,
+                    dst,
+                    is_split_mode,
+                    source_entry,
+                    destination_entry,
+                    merge_source_history,
+                    merge_dest_history,
+                    split_source_history,
+                    split_dest_history,
+                )
                 messagebox.showinfo(
                     "Operation Complete", f"Successfully split source code into:\n{dst}"
                 )
@@ -671,9 +785,21 @@ def run_gui():
                     src,
                     dst,
                     extensions=active_extensions,
-                    progress_callback=update_progress,
+                    progress_callback=lambda c, t: update_progress(
+                        c, t, progress_var, root
+                    ),
                 )
-                update_history(src, dst)
+                update_history(
+                    src,
+                    dst,
+                    is_split_mode,
+                    source_entry,
+                    destination_entry,
+                    merge_source_history,
+                    merge_dest_history,
+                    split_source_history,
+                    split_dest_history,
+                )
                 messagebox.showinfo(
                     "Operation Complete",
                     f"Successfully bundled source code into:\n{dst}",
@@ -683,7 +809,7 @@ def run_gui():
 
         progress_var.set(0)
 
-    def toggle_operation_mode():
+    def toggle_operation_mode() -> None:
         """Update UI labels when operation mode changes."""
         current_source = source_var.get()
         current_dest = dest_var.get()
@@ -703,6 +829,7 @@ def run_gui():
             destination_entry["values"] = merge_dest_history
             overwrite_check.config(state="disabled")
 
+    # Main GUI Layout
     main_frame = ttk.Frame(root, padding=10)
     main_frame.pack(fill=tk.BOTH, expand=True)
 
@@ -722,7 +849,7 @@ def run_gui():
     source_button = ttk.Button(
         input_frame,
         text="Browse",
-        command=select_source_action,
+        command=select_source,
         width=10,
         cursor="hand2",
     )
@@ -739,7 +866,7 @@ def run_gui():
     destination_button = ttk.Button(
         input_frame,
         text="Save As",
-        command=select_destination_action,
+        command=select_destination,
         width=10,
         cursor="hand2",
     )
@@ -788,7 +915,7 @@ def run_gui():
     options_button = ttk.Button(
         button_frame,
         text="Options",
-        command=options_action,
+        command=show_options,
         width=10,
         cursor="hand2",
     )
@@ -797,13 +924,13 @@ def run_gui():
     execute_button = ttk.Button(
         button_frame,
         text="Execute",
-        command=execute_action,
+        command=run_operation,
         width=10,
         cursor="hand2",
     )
     execute_button.pack(side=tk.LEFT, padx=5)
 
-    def on_closing():
+    def on_closing() -> None:
         """Save configuration and close the application."""
         config["geometry"] = root.geometry()
         config["extensions"] = {ext: var.get() for ext, var in extension_vars.items()}

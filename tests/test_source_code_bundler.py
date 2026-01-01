@@ -7,7 +7,7 @@ and various edge cases for file handling.
 
 Author: Gino Bogo
 License: MIT
-Version: 1.0
+Version: 1.1
 """
 
 import os
