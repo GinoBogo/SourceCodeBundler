@@ -103,6 +103,22 @@ def save_file_dialog(title="Save File", filetypes=None):
 # Core Logic
 
 
+def read_file_content(file_path):
+    """Attempts to read file content using multiple encodings."""
+    for encoding in ["utf-8", "cp1252", "latin-1"]:
+        try:
+            with file_path.open("r", encoding=encoding, newline="") as f:
+                content = f.read()
+                if "\0" in content:
+                    raise ValueError("Binary content detected")
+                return content
+        except (UnicodeDecodeError, ValueError):
+            continue
+    raise UnicodeDecodeError(
+        "utf-8", b"", 0, 1, "Failed to decode with supported encodings"
+    )
+
+
 def merge_source_code(
     source_dir,
     output_file,
@@ -159,14 +175,42 @@ def merge_source_code(
     files_with_paths.sort(key=lambda x: x[1])
     total_files = len(files_with_paths)
 
+    # Calculate max path length for alignment
+    max_path_len = max((len(dp) for _, dp in files_with_paths), default=0)
+
+    # Pre-read files to generate index statistics and cache content
+    file_results = {}
+    max_size_len = 0
+    max_lines_len = 0
+    for file_path, _ in files_with_paths:
+        try:
+            content = read_file_content(file_path)
+            file_results[file_path] = (content, None)
+            size_kb = len(content.encode("utf-8")) / 1024
+            lines = content.count("\n") + 1
+            max_size_len = max(max_size_len, len(f"{size_kb:.1f}"))
+            max_lines_len = max(max_lines_len, len(str(lines)))
+        except Exception as e:
+            file_results[file_path] = (None, e)
+
     with output_path.open("w", encoding="utf-8", newline="") as outfile:
         if total_files > 0:
             # Write File Index
             outfile.write(f"# {SEPARATOR_MARKER} FILE INDEX START\n")
             outfile.write(f"# Total Files: {total_files}\n")
             outfile.write("# \n")
-            for _, display_path in files_with_paths:
-                outfile.write(f"# {display_path}\n")
+            for file_path, display_path in files_with_paths:
+                content, error = file_results[file_path]
+                if content is not None:
+                    size_kb = len(content.encode("utf-8")) / 1024
+                    lines = content.count("\n") + 1
+                    outfile.write(
+                        f"# {display_path.ljust(max_path_len)} | SIZE: {size_kb:>{max_size_len}.1f}kb | LINES: {lines:>{max_lines_len}}\n"
+                    )
+                else:
+                    outfile.write(
+                        f"# {display_path.ljust(max_path_len)} [Error reading file]\n"
+                    )
             outfile.write(f"# {SEPARATOR_MARKER} FILE INDEX END\n\n")
 
         for index, (file_path, rel_path_display) in enumerate(files_with_paths, 1):
@@ -207,25 +251,10 @@ def merge_source_code(
                 # Write Start
                 outfile.write(f"{start_marker}\n")
 
-                # Write Content
-                content = None
-                # Try common encodings
-                for encoding in ["utf-8", "cp1252", "latin-1"]:
-                    try:
-                        with file_path.open("r", encoding=encoding, newline="") as f:
-                            temp_content = f.read()
-                            # Simple binary check: null bytes are rare in source code
-                            if "\0" in temp_content:
-                                raise ValueError("Binary content detected")
-                            content = temp_content
-                        break
-                    except (UnicodeDecodeError, ValueError):
-                        continue
-
-                if content is None:
-                    raise UnicodeDecodeError(
-                        "utf-8", b"", 0, 1, "Failed to decode with supported encodings"
-                    )
+                # Write Content (from cache)
+                content, error = file_results[file_path]
+                if error:
+                    raise error
 
                 outfile.write(content)
                 if content and not content.endswith(("\n", "\r")):
