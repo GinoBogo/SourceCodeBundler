@@ -24,15 +24,20 @@ from tkinter import filedialog, messagebox, ttk
 # ==============================================================================
 # Constants
 
-CONFIG_FILE = "source_code_bundler.json"
-
+# fmt: off
+CONFIG_FILE      = "source_code_bundler.json"
 SEPARATOR_MARKER = "[[ SCB ]]"
+CHECKED_CHAR     = "✓"
+UNCHECKED_CHAR   = "☐"
 
-CHECKED_CHAR = "✓"
-
-UNCHECKED_CHAR = "☐"
-
-DEFAULT_EXTENSIONS = [".py", ".rs", ".c", ".h", ".cpp", ".hpp", ".css"]
+DEFAULT_EXTENSIONS = [
+    ".py",
+    ".rs",
+    ".c",
+    ".h",
+    ".cpp",
+    ".hpp",
+    ".css"]
 
 COMMENT_SYNTAX = {
     ".py": "#",
@@ -43,6 +48,14 @@ COMMENT_SYNTAX = {
     ".hpp": "//",
     ".css": "/*",
 }
+
+# Regex patterns for splitting
+START_PATTERN         = re.compile(r"^(\S+)\s+\[\[ SCB \]\] START FILE:\s+(.+?)(?:\s*\*/)?$")
+END_PATTERN           = re.compile(r"^(\S+)\s+\[\[ SCB \]\] END FILE:\s+(.+?)(?:\s*\*/)?$")
+ERROR_START_PATTERN   = re.compile(r"^(\S+)\s+\[\[ SCB \]\] ERROR START:\s+(.+?)(?:\s*\*/)?$")
+ERROR_MESSAGE_PATTERN = re.compile(r"^(\S+)\s+\[\[ SCB \]\] ERROR:\s+(.+?)(?:\s*\*/)?$")
+ERROR_END_PATTERN     = re.compile(r"^(\S+)\s+\[\[ SCB \]\] ERROR END:\s+(.+?)(?:\s*\*/)?$")
+# fmt: on
 
 
 # ==============================================================================
@@ -222,8 +235,6 @@ def merge_source_code(
                     if isinstance(e, UnicodeDecodeError)
                     else str(e)
                 )
-                # Note: If exception occurs before markers are defined, this
-                # might fail, but path calculation is robust.
                 outfile.write(
                     f"{err_start}\n{err_msg_prefix} {error_msg}\n{err_end}\n\n"
                 )
@@ -254,13 +265,6 @@ def split_source_code(source_file, output_dir, progress_callback=None):
     current_file = None
     current_line = 0
 
-    # Regex patterns (handle CSS comments)
-    start_pattern = r"^(\S+)\s+\[\[ SCB \]\] START FILE:\s+(.+?)(?:\s*\*/)?$"
-    end_pattern = r"^(\S+)\s+\[\[ SCB \]\] END FILE:\s+(.+?)(?:\s*\*/)?$"
-    error_start_pattern = r"^(\S+)\s+\[\[ SCB \]\] ERROR START:\s+(.+?)(?:\s*\*/)?$"
-    error_message_pattern = r"^(\S+)\s+\[\[ SCB \]\] ERROR:\s+(.+?)(?:\s*\*/)?$"
-    error_end_pattern = r"^(\S+)\s+\[\[ SCB \]\] ERROR END:\s+(.+?)(?:\s*\*/)?$"
-
     while current_line < len(lines):
         if progress_callback and current_line % 100 == 0:
             progress_callback(current_line, total_lines)
@@ -269,7 +273,7 @@ def split_source_code(source_file, output_dir, progress_callback=None):
         stripped = line.strip()
 
         # Check START marker
-        start_match = re.match(start_pattern, stripped)
+        start_match = START_PATTERN.match(stripped)
         if start_match:
             if current_file:
                 current_file.close()
@@ -333,7 +337,7 @@ def split_source_code(source_file, output_dir, progress_callback=None):
             continue
 
         # Check END marker
-        end_match = re.match(end_pattern, stripped)
+        end_match = END_PATTERN.match(stripped)
         if end_match and current_file:
             current_file.close()
             current_file = None
@@ -345,12 +349,12 @@ def split_source_code(source_file, output_dir, progress_callback=None):
             continue
 
         # Check ERROR START
-        error_start_match = re.match(error_start_pattern, stripped)
+        error_start_match = ERROR_START_PATTERN.match(stripped)
         if error_start_match:
             # Skip error block
             while current_line < len(lines):
                 line_stripped = lines[current_line].strip()
-                if re.match(error_end_pattern, line_stripped):
+                if ERROR_END_PATTERN.match(line_stripped):
                     # Skip ERROR END
                     current_line += 1
                     while current_line < len(lines) and not lines[current_line].strip():
@@ -360,7 +364,7 @@ def split_source_code(source_file, output_dir, progress_callback=None):
             continue
 
         # Skip error messages
-        if re.match(error_message_pattern, stripped):
+        if ERROR_MESSAGE_PATTERN.match(stripped):
             current_line += 1
             continue
 
