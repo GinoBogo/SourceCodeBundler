@@ -504,6 +504,45 @@ class TestSourceCodeBundler(unittest.TestCase):
         with open(file2, "r", encoding="utf-8", newline="") as f:
             self.assertEqual(f.read().strip(), "Version 2")
 
+    def test_split_overwrite_mode(self):
+        """Test that overwrite mode overwrites existing files instead of renaming."""
+        marker = source_code_bundler.SEPARATOR_MARKER
+        filename = "overwrite_test.txt"
+
+        # Content in the bundle
+        bundle_content = (
+            f"// {marker} START FILE: {filename}\n"
+            "New Content\n"
+            f"// {marker} END FILE: {filename}\n\n"
+        )
+
+        with open(self.bundle_file, "w", encoding="utf-8") as f:
+            f.write(bundle_content)
+
+        # Create existing file with different content
+        existing_file_path = os.path.join(self.output_dir, filename)
+        with open(existing_file_path, "w", encoding="utf-8") as f:
+            f.write("Old Content")
+
+        # Run split with overwrite=True
+        source_code_bundler.split_source_code(
+            self.bundle_file, self.output_dir, overwrite=True
+        )
+
+        # Verify file content is updated
+        with open(existing_file_path, "r", encoding="utf-8") as f:
+            content = f.read().strip()
+        self.assertEqual(
+            content, "New Content", "File should be overwritten with new content"
+        )
+
+        # Verify no duplicate file was created
+        duplicate_path = os.path.join(self.output_dir, "overwrite_test_1.txt")
+        self.assertFalse(
+            os.path.exists(duplicate_path),
+            "Duplicate file should not be created in overwrite mode",
+        )
+
     # ============================================================================
     # File System Interaction Tests
     # ============================================================================

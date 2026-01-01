@@ -276,7 +276,7 @@ def merge_source_code(
                 progress_callback(index, total_files)
 
 
-def split_source_code(source_file, output_dir, progress_callback=None):
+def split_source_code(source_file, output_dir, overwrite=False, progress_callback=None):
     """
     Reconstructs individual source files from a combined file created by
     merge_source_code.
@@ -284,6 +284,7 @@ def split_source_code(source_file, output_dir, progress_callback=None):
     Args:
         source_file: Combined source file to split
         output_dir: Directory where individual files will be created
+        overwrite: If True, overwrite existing files instead of renaming
         progress_callback: Optional callback for progress updates
     """
     output_path = Path(output_dir)
@@ -349,7 +350,7 @@ def split_source_code(source_file, output_dir, progress_callback=None):
                 target_path.parent.mkdir(parents=True, exist_ok=True)
 
                 # Avoid overwriting existing files by appending a counter
-                if target_path.exists():
+                if target_path.exists() and not (overwrite and target_path.is_file()):
                     stem = target_path.stem
                     suffix = target_path.suffix
                     counter = 1
@@ -471,7 +472,7 @@ def run_gui():
     root.title("Source Code Bundler")
 
     window_width = 600
-    window_height = 300
+    window_height = 340
 
     config = load_config()
     if "geometry" in config:
@@ -500,6 +501,7 @@ def run_gui():
     source_var = tk.StringVar()
     dest_var = tk.StringVar()
     is_split_mode = tk.BooleanVar(value=False)
+    overwrite_mode = tk.BooleanVar(value=config.get("overwrite_mode", False))
     progress_var = tk.DoubleVar()
     saved_extensions = config.get("extensions", {})
     extension_vars = {
@@ -637,7 +639,12 @@ def run_gui():
                     )
                     return
 
-                split_source_code(src, dst, progress_callback=update_progress)
+                split_source_code(
+                    src,
+                    dst,
+                    overwrite=overwrite_mode.get(),
+                    progress_callback=update_progress,
+                )
                 update_history(src, dst)
                 messagebox.showinfo(
                     "Operation Complete", f"Successfully split source code into:\n{dst}"
@@ -688,11 +695,13 @@ def run_gui():
             destination_label.config(text="Output Directory:")
             source_entry["values"] = split_source_history
             destination_entry["values"] = split_dest_history
+            overwrite_check.config(state="normal")
         else:
             source_label.config(text="Source Directory:")
             destination_label.config(text="Output File:")
             source_entry["values"] = merge_source_history
             destination_entry["values"] = merge_dest_history
+            overwrite_check.config(state="disabled")
 
     main_frame = ttk.Frame(root, padding=10)
     main_frame.pack(fill=tk.BOTH, expand=True)
@@ -755,6 +764,14 @@ def run_gui():
         command=toggle_operation_mode,
     ).pack(side=tk.LEFT)
 
+    overwrite_check = ttk.Checkbutton(
+        input_frame,
+        text="Overwrite Mode",
+        variable=overwrite_mode,
+        state="disabled",
+    )
+    overwrite_check.grid(row=3, column=0, columnspan=2, sticky=tk.W, pady=(0, 10))
+
     # Second frame: Actions
     action_frame = ttk.Frame(main_frame)
     action_frame.pack(fill=tk.BOTH, expand=True)
@@ -790,6 +807,7 @@ def run_gui():
         """Save configuration and close the application."""
         config["geometry"] = root.geometry()
         config["extensions"] = {ext: var.get() for ext, var in extension_vars.items()}
+        config["overwrite_mode"] = overwrite_mode.get()
         config["merge_source_history"] = merge_source_history
         config["merge_dest_history"] = merge_dest_history
         config["split_source_history"] = split_source_history
