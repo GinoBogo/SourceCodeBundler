@@ -186,18 +186,20 @@ def merge_source_code(
                 is_css_file = suffix == ".css"
 
                 # Construct markers
+                # fmt: off
                 if is_css_file:
-                    start_marker = f"{comment_char} {SEPARATOR_MARKER} START FILE: {rel_path_display} */"
-                    end_marker = f"{comment_char} {SEPARATOR_MARKER} END FILE: {rel_path_display} */"
-                    err_start = f"{comment_char} {SEPARATOR_MARKER} ERROR START: {rel_path_display} */"
-                    err_msg_prefix = f"{comment_char} {SEPARATOR_MARKER} ERROR:"
-                    err_end = f"{comment_char} {SEPARATOR_MARKER} ERROR END: {rel_path_display} */"
+                    start_marker   = f"/* {SEPARATOR_MARKER} START FILE: {rel_path_display} */"
+                    end_marker     = f"/* {SEPARATOR_MARKER} END FILE: {rel_path_display} */"
+                    err_start      = f"/* {SEPARATOR_MARKER} ERROR START: {rel_path_display} */"
+                    err_msg_prefix = f"/* {SEPARATOR_MARKER} ERROR:"
+                    err_end        = f"/* {SEPARATOR_MARKER} ERROR END: {rel_path_display} */"
                 else:
-                    start_marker = f"{comment_char} {SEPARATOR_MARKER} START FILE: {rel_path_display}"
-                    end_marker = f"{comment_char} {SEPARATOR_MARKER} END FILE: {rel_path_display}"
-                    err_start = f"{comment_char} {SEPARATOR_MARKER} ERROR START: {rel_path_display}"
+                    start_marker   = f"{comment_char} {SEPARATOR_MARKER} START FILE: {rel_path_display}"
+                    end_marker     = f"{comment_char} {SEPARATOR_MARKER} END FILE: {rel_path_display}"
+                    err_start      = f"{comment_char} {SEPARATOR_MARKER} ERROR START: {rel_path_display}"
                     err_msg_prefix = f"{comment_char} {SEPARATOR_MARKER} ERROR:"
-                    err_end = f"{comment_char} {SEPARATOR_MARKER} ERROR END: {rel_path_display}"
+                    err_end        = f"{comment_char} {SEPARATOR_MARKER} ERROR END: {rel_path_display}"
+                    # fmt: on
 
                 # Write Start
                 outfile.write(f"{start_marker}\n")
