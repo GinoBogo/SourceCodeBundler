@@ -185,13 +185,14 @@ def merge_source_code(
     for file_path, _ in files_with_paths:
         try:
             content = read_file_content(file_path)
-            file_results[file_path] = (content, None)
             size_kb = len(content.encode("utf-8")) / 1024
             lines = content.count("\n") + 1
-            max_size_len = max(max_size_len, len(f"{size_kb:.1f}"))
+            size_str = f"{size_kb:.1f}"
+            file_results[file_path] = (content, size_str, lines, None)
+            max_size_len = max(max_size_len, len(size_str))
             max_lines_len = max(max_lines_len, len(str(lines)))
         except Exception as e:
-            file_results[file_path] = (None, e)
+            file_results[file_path] = (None, None, 0, e)
 
     with output_path.open("w", encoding="utf-8", newline="") as outfile:
         if total_files > 0:
@@ -200,12 +201,10 @@ def merge_source_code(
             outfile.write(f"# Total Files: {total_files}\n")
             outfile.write("# \n")
             for file_path, display_path in files_with_paths:
-                content, error = file_results[file_path]
+                content, size_str, lines, error = file_results[file_path]
                 if content is not None:
-                    size_kb = len(content.encode("utf-8")) / 1024
-                    lines = content.count("\n") + 1
                     outfile.write(
-                        f"# {display_path.ljust(max_path_len)} | SIZE: {size_kb:>{max_size_len}.1f}kb | LINES: {lines:>{max_lines_len}}\n"
+                        f"# {display_path.ljust(max_path_len)} | SIZE: {size_str:>{max_size_len}}kb | LINES: {lines:>{max_lines_len}}\n"
                     )
                 else:
                     outfile.write(
@@ -252,7 +251,7 @@ def merge_source_code(
                 outfile.write(f"{start_marker}\n")
 
                 # Write Content (from cache)
-                content, error = file_results[file_path]
+                content, _, _, error = file_results[file_path]
                 if error:
                     raise error
 
