@@ -28,6 +28,7 @@ This directory contains unit tests for the Source Code Bundler application. The 
 - **test_error_markers_defined_before_exception_robust**: Test error markers are defined before any exception can occur.
 - **test_error_handling_in_split_function**: Test error handling when splitting corrupted bundle.
 - **test_split_duplicate_filename_handling**: Test splitting handles duplicate filenames by renaming.
+- **test_split_overwrite_mode**: Test that overwrite mode overwrites existing files instead of renaming.
 
 ### File System Interaction Tests
 - **test_symlink_handling**: Test symbolic links to files are followed and included.
@@ -52,6 +53,12 @@ This directory contains unit tests for the Source Code Bundler application. The 
 ### Progress and Configuration Tests
 - **test_progress_callback_frequency**: Test progress callback is called appropriately.
 - **test_configuration_file_location_isolated**: Test configuration file handling with isolation.
+
+### Patch Mode Tests
+- **test_apply_patch_success**: Test successful patch application using mocks.
+- **test_apply_patch_tool_missing**: Test error when patch tool is missing.
+- **test_apply_patch_execution_failure**: Test handling of patch command failure.
+- **test_apply_patch_integration**: Integration test for patch application (skipped if patch not installed).
 
 ## Running Tests
 

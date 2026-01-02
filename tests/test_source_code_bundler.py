@@ -12,6 +12,7 @@ Version: 1.1
 
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -970,6 +971,83 @@ class TestSourceCodeBundler(unittest.TestCase):
             source_code_bundler.CONFIG_FILE = original_config_file
             if temp_config and os.path.exists(temp_config):
                 os.remove(temp_config)
+
+    # ============================================================================
+    # Patch Mode Tests
+    # ============================================================================
+
+    @patch("source_code_bundler.subprocess.run")
+    @patch("source_code_bundler.shutil.which")
+    def test_apply_patch_success(self, mock_which, mock_run):
+        """Test successful patch application using mocks."""
+        mock_which.return_value = "/usr/bin/patch"
+        mock_run.return_value.returncode = 0
+
+        patch_file = os.path.join(self.test_dir, "changes.patch")
+
+        source_code_bundler.apply_patch(patch_file, self.output_dir)
+
+        mock_run.assert_called_once()
+        args, kwargs = mock_run.call_args
+        cmd = args[0]
+
+        self.assertEqual(cmd[0], "patch")
+        self.assertIn("-i", cmd)
+        self.assertEqual(cmd[cmd.index("-i") + 1], patch_file)
+        self.assertIn("-d", cmd)
+        self.assertEqual(cmd[cmd.index("-d") + 1], self.output_dir)
+
+    @patch("source_code_bundler.shutil.which")
+    def test_apply_patch_tool_missing(self, mock_which):
+        """Test error when patch tool is missing."""
+        mock_which.return_value = None
+
+        with self.assertRaises(FileNotFoundError):
+            source_code_bundler.apply_patch("dummy.patch", "dummy_dir")
+
+    @patch("source_code_bundler.subprocess.run")
+    @patch("source_code_bundler.shutil.which")
+    def test_apply_patch_execution_failure(self, mock_which, mock_run):
+        """Test handling of patch command failure."""
+        mock_which.return_value = "/usr/bin/patch"
+        mock_run.side_effect = subprocess.CalledProcessError(
+            1, ["patch"], stderr="Patch failed"
+        )
+
+        with self.assertRaises(RuntimeError) as cm:
+            source_code_bundler.apply_patch("dummy.patch", "dummy_dir")
+
+        self.assertIn("Patch failed", str(cm.exception))
+
+    def test_apply_patch_integration(self):
+        """Integration test for patch application (skipped if patch not installed)."""
+        if not shutil.which("patch"):
+            self.skipTest("'patch' command not found")
+
+        # Create original file
+        original_file = os.path.join(self.output_dir, "test.txt")
+        with open(original_file, "w") as f:
+            f.write("Hello World\n")
+
+        # Create patch file
+        patch_content = """--- test.txt
++++ test.txt
+@@ -1 +1 @@
+-Hello World
++Hello Python
+"""
+        patch_file = os.path.join(self.test_dir, "test.patch")
+        with open(patch_file, "w") as f:
+            f.write(patch_content)
+
+        # Apply patch
+        source_code_bundler.apply_patch(patch_file, self.output_dir)
+
+        # Verify content
+        with open(original_file, "r") as f:
+            content = f.read()
+
+        self.assertEqual(content, "Hello Python\n")
 
 
 if __name__ == "__main__":

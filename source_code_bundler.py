@@ -15,11 +15,13 @@ import argparse
 import json
 import os
 import re
+import shutil
+import subprocess
 import sys
 import tkinter as tk
-from typing import Callable, List, Optional
 from pathlib import Path, PurePosixPath
 from tkinter import filedialog, messagebox, ttk
+from typing import Callable, List, Optional
 
 
 # ==============================================================================
@@ -430,6 +432,33 @@ def split_source_code(
         progress_callback(total_lines, total_lines)
 
 
+def apply_patch(
+    patch_file: str,
+    target_dir: str,
+    progress_callback: Optional[Callable] = None,
+) -> None:
+    """
+    Applies a patch file to the target directory using the system 'patch' command.
+
+    Args:
+        patch_file: Path to the patch file
+        target_dir: Directory to apply the patch in
+        progress_callback: Optional callback
+    """
+    if not shutil.which("patch"):
+        raise FileNotFoundError("The 'patch' command is not found in system PATH.")
+
+    cmd = ["patch", "--batch", "--forward", "-p0", "-d", target_dir, "-i", patch_file]
+
+    try:
+        subprocess.run(cmd, capture_output=True, text=True, check=True)
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(f"Patch failed:\n{e.stderr}\n{e.stdout}")
+
+    if progress_callback:
+        progress_callback(100, 100)
+
+
 # ==============================================================================
 # GUI Helper Functions
 
@@ -524,30 +553,38 @@ def toggle_checkbox(
 def update_history(
     src: str,
     dst: str,
-    is_split_mode: tk.BooleanVar,
+    operation_mode: tk.StringVar,
     source_entry: ttk.Combobox,
     destination_entry: ttk.Combobox,
     merge_source_history: list,
     merge_dest_history: list,
     split_source_history: list,
     split_dest_history: list,
+    patch_source_history: list,
+    patch_dest_history: list,
 ) -> None:
     """Updates the history for source and destination comboboxes.
 
     Args:
         src: Source path
         dst: Destination path
-        is_split_mode: BooleanVar indicating split mode
+        operation_mode: StringVar indicating operation mode
         source_entry: Source combobox widget
         destination_entry: Destination combobox widget
         merge_source_history: Merge mode source history list
         merge_dest_history: Merge mode destination history list
         split_source_history: Split mode source history list
         split_dest_history: Split mode destination history list
+        patch_source_history: Patch mode source history list
+        patch_dest_history: Patch mode destination history list
     """
-    if is_split_mode.get():
+    mode = operation_mode.get()
+    if mode == "split":
         s_hist = split_source_history
         d_hist = split_dest_history
+    elif mode == "patch":
+        s_hist = patch_source_history
+        d_hist = patch_dest_history
     else:
         s_hist = merge_source_history
         d_hist = merge_dest_history
@@ -656,7 +693,7 @@ def run_gui() -> None:
 
     source_var = tk.StringVar()
     dest_var = tk.StringVar()
-    is_split_mode = tk.BooleanVar(value=False)
+    operation_mode = tk.StringVar(value="merge")
     overwrite_mode = tk.BooleanVar(value=config.get("overwrite_mode", False))
     progress_var = tk.DoubleVar()
     extensions_config = config.get("extensions", {})
@@ -669,10 +706,18 @@ def run_gui() -> None:
     merge_dest_history = config.get("merge_dest_history", [])
     split_source_history = config.get("split_source_history", [])
     split_dest_history = config.get("split_dest_history", [])
+    patch_source_history = config.get("patch_source_history", [])
+    patch_dest_history = config.get("patch_dest_history", [])
 
     def select_source() -> None:
         """Open file dialog for source selection based on current mode."""
-        if is_split_mode.get():
+        mode = operation_mode.get()
+        if mode == "patch":
+            selected = select_file(
+                "Select Patch File",
+                [("Patch files", "*.patch *.diff"), ("All files", "*.*")],
+            )
+        elif mode == "split":
             selected = select_file(
                 "Select Bundled Source File",
                 filetypes_list,
@@ -685,8 +730,13 @@ def run_gui() -> None:
 
     def select_destination() -> None:
         """Open file dialog for destination selection based on current mode."""
-        if is_split_mode.get():
-            selected = select_directory("Select Output Directory")
+        mode = operation_mode.get()
+        if mode == "split" or mode == "patch":
+            selected = select_directory(
+                "Select Output Directory"
+                if mode == "split"
+                else "Select Target Directory"
+            )
         else:
             selected = save_file_dialog("Save Bundled Output", filetypes_list)
 
@@ -727,6 +777,7 @@ def run_gui() -> None:
         """Execute merge or split operation based on current mode."""
         src = source_var.get()
         dst = dest_var.get()
+        mode = operation_mode.get()
 
         if not src or not dst:
             messagebox.showwarning(
@@ -746,7 +797,7 @@ def run_gui() -> None:
         progress_var.set(0)
 
         try:
-            if is_split_mode.get():
+            if mode == "split":
                 if not src_path.is_file():
                     messagebox.showerror(
                         "Invalid Source", "Source must be a file in split mode."
@@ -764,17 +815,47 @@ def run_gui() -> None:
                 update_history(
                     src,
                     dst,
-                    is_split_mode,
+                    operation_mode,
                     source_entry,
                     destination_entry,
                     merge_source_history,
                     merge_dest_history,
                     split_source_history,
                     split_dest_history,
+                    patch_source_history,
+                    patch_dest_history,
                 )
                 messagebox.showinfo(
                     "Operation Complete", f"Successfully split source code into:\n{dst}"
                 )
+            elif mode == "patch":
+                if not src_path.is_file():
+                    messagebox.showerror(
+                        "Invalid Source", "Source must be a patch file."
+                    )
+                    return
+
+                apply_patch(
+                    src,
+                    dst,
+                    progress_callback=lambda c, t: update_progress(
+                        c, t, progress_var, root
+                    ),
+                )
+                update_history(
+                    src,
+                    dst,
+                    operation_mode,
+                    source_entry,
+                    destination_entry,
+                    merge_source_history,
+                    merge_dest_history,
+                    split_source_history,
+                    split_dest_history,
+                    patch_source_history,
+                    patch_dest_history,
+                )
+                messagebox.showinfo("Operation Complete", "Patch applied successfully.")
             else:
                 if not src_path.is_dir():
                     messagebox.showerror(
@@ -804,13 +885,15 @@ def run_gui() -> None:
                 update_history(
                     src,
                     dst,
-                    is_split_mode,
+                    operation_mode,
                     source_entry,
                     destination_entry,
                     merge_source_history,
                     merge_dest_history,
                     split_source_history,
                     split_dest_history,
+                    patch_source_history,
+                    patch_dest_history,
                 )
                 messagebox.showinfo(
                     "Operation Complete",
@@ -823,17 +906,19 @@ def run_gui() -> None:
 
     def toggle_operation_mode() -> None:
         """Update UI labels when operation mode changes."""
-        current_source = source_var.get()
-        current_dest = dest_var.get()
-        source_var.set(current_dest)
-        dest_var.set(current_source)
-
-        if is_split_mode.get():
+        mode = operation_mode.get()
+        if mode == "split":
             source_label.config(text="Source File:")
             destination_label.config(text="Output Directory:")
             source_entry["values"] = split_source_history
             destination_entry["values"] = split_dest_history
             overwrite_check.config(state="normal")
+        elif mode == "patch":
+            source_label.config(text="Patch File:")
+            destination_label.config(text="Target Directory:")
+            source_entry["values"] = patch_source_history
+            destination_entry["values"] = patch_dest_history
+            overwrite_check.config(state="disabled")
         else:
             source_label.config(text="Source Directory:")
             destination_label.config(text="Output File:")
@@ -890,16 +975,24 @@ def run_gui() -> None:
     ttk.Radiobutton(
         mode_frame,
         text="Merge Mode",
-        variable=is_split_mode,
-        value=False,
+        variable=operation_mode,
+        value="merge",
         command=toggle_operation_mode,
     ).pack(side=tk.LEFT, padx=(0, 10))
 
     ttk.Radiobutton(
         mode_frame,
         text="Split Mode",
-        variable=is_split_mode,
-        value=True,
+        variable=operation_mode,
+        value="split",
+        command=toggle_operation_mode,
+    ).pack(side=tk.LEFT, padx=(0, 10))
+
+    ttk.Radiobutton(
+        mode_frame,
+        text="Patch Mode",
+        variable=operation_mode,
+        value="patch",
         command=toggle_operation_mode,
     ).pack(side=tk.LEFT)
 
@@ -951,6 +1044,8 @@ def run_gui() -> None:
         config["merge_dest_history"] = merge_dest_history
         config["split_source_history"] = split_source_history
         config["split_dest_history"] = split_dest_history
+        config["patch_source_history"] = patch_source_history
+        config["patch_dest_history"] = patch_dest_history
         save_config(config)
         root.destroy()
 

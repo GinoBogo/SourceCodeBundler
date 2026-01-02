@@ -6,6 +6,7 @@ A versatile Python utility designed to merge multiple source code files into a s
 
 - **Merge Mode**: Recursively scans a directory and combines source files into a single text file.
 - **Split Mode**: Reconstructs the original file and directory structure from a bundled file.
+- **Patch Mode**: Applies standard diff/patch files to a target directory.
 - **Language Support**: Automatically handles comment syntax for headers in Python (`.py`), Rust (`.rs`), C/C++ (`.c`, `.h`, `.cpp`, `.hpp`), and CSS (`.css`).
 - **GUI Interface**: User-friendly graphical interface built with Tkinter.
 - **CLI Support**: Command-line interface for batch processing and automation.
@@ -18,6 +19,7 @@ A versatile Python utility designed to merge multiple source code files into a s
 
 - Python 3.x
 - Tkinter (usually included with standard Python installations)
+- System `patch` command (required for Patch Mode)
 
 ## Installation
 
@@ -50,6 +52,13 @@ python source_code_bundler.py
 1. Select **Split Mode**.
 2. Click **Browse** next to "Source File" to select a previously bundled file.
 3. Click **Save As** (which acts as a directory selector in this mode) to choose the destination folder for the extracted files.
+4. Click **Execute**.
+
+### Applying Patches
+
+1. Select **Patch Mode**.
+2. Click **Browse** next to "Patch File" to select your `.patch` or `.diff` file.
+3. Click **Save As** (acts as directory selector) to choose the target directory where the patch should be applied.
 4. Click **Execute**.
 
 ## Configuration
