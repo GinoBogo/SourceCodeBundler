@@ -27,7 +27,6 @@ from tkinter import filedialog, messagebox, ttk
 
 # fmt: off
 CONFIG_FILE        = "source_code_bundler.json"
-SEPARATOR_MARKER   = "[[ SCB ]]"
 GUI_CHECKED_CHAR   = "✓"
 GUI_UNCHECKED_CHAR = "☐"
 
@@ -50,12 +49,24 @@ COMMENT_SYNTAX = {
     ".css": "/*",
 }
 
-# Regex patterns for splitting
-START_PATTERN         = re.compile(r"^(\S+)\s+\[\[ SCB \]\] START FILE:\s+(.+?)(?:\s*\*/)?$")
-END_PATTERN           = re.compile(r"^(\S+)\s+\[\[ SCB \]\] END FILE:\s+(.+?)(?:\s*\*/)?$")
-ERROR_START_PATTERN   = re.compile(r"^(\S+)\s+\[\[ SCB \]\] ERROR START:\s+(.+?)(?:\s*\*/)?$")
-ERROR_MESSAGE_PATTERN = re.compile(r"^(\S+)\s+\[\[ SCB \]\] ERROR:\s+(.+?)(?:\s*\*/)?$")
-ERROR_END_PATTERN     = re.compile(r"^(\S+)\s+\[\[ SCB \]\] ERROR END:\s+(.+?)(?:\s*\*/)?$")
+SEPARATOR_MARKER = "[[ SCB ]]"
+
+# Merge Constants
+FILE_START_MERGE  = f"{SEPARATOR_MARKER} START FILE:"
+FILE_END_MERGE    = f"{SEPARATOR_MARKER} END FILE:"
+ERROR_START_MERGE = f"{SEPARATOR_MARKER} START ERROR:"
+ERROR_MSG_MERGE   = f"{SEPARATOR_MARKER} ERROR:"
+ERROR_END_MERGE   = f"{SEPARATOR_MARKER} END ERROR:"
+
+# Split Regex Patterns
+def _create_split_pattern(marker):
+    return re.compile(r"^(\S+)\s+" + re.escape(marker) + r"\s+(.+?)(?:\s*\*/)?$")
+
+FILE_START_SPLIT  = _create_split_pattern(FILE_START_MERGE)
+FILE_END_SPLIT    = _create_split_pattern(FILE_END_MERGE)
+ERROR_START_SPLIT = _create_split_pattern(ERROR_START_MERGE)
+ERROR_MSG_SPLIT   = _create_split_pattern(ERROR_MSG_MERGE)
+ERROR_END_SPLIT   = _create_split_pattern(ERROR_END_MERGE)
 # fmt: on
 
 
@@ -67,7 +78,8 @@ def load_config() -> dict:
     """Loads configuration from the JSON file.
 
     Returns:
-        dict: Configuration dictionary, empty dict if file doesn't exist or is invalid
+        dict: Configuration dictionary, empty dict if file doesn't exist or is
+        invalid
     """
     try:
         with open(CONFIG_FILE, "r", encoding="utf-8") as f:
@@ -229,18 +241,18 @@ def merge_source_code(
             # Construct markers
             # fmt: off
             if is_css_file:
-                start_marker   = f"/* {SEPARATOR_MARKER} START FILE: {rel_path_display} */"
-                end_marker     = f"/* {SEPARATOR_MARKER} END FILE: {rel_path_display} */"
-                err_start      = f"/* {SEPARATOR_MARKER} ERROR START: {rel_path_display} */"
-                err_msg_prefix = f"/* {SEPARATOR_MARKER} ERROR:"
-                err_end        = f"/* {SEPARATOR_MARKER} ERROR END: {rel_path_display} */"
+                start_marker   = f"/* {FILE_START_MERGE} {rel_path_display} */"
+                end_marker     = f"/* {FILE_END_MERGE} {rel_path_display} */"
+                err_start      = f"/* {ERROR_START_MERGE} {rel_path_display} */"
+                err_msg_prefix = f"/* {ERROR_MSG_MERGE}"
+                err_end        = f"/* {ERROR_END_MERGE} {rel_path_display} */"
                 err_msg_suffix = " */"
             else:
-                start_marker   = f"{comment_char} {SEPARATOR_MARKER} START FILE: {rel_path_display}"
-                end_marker     = f"{comment_char} {SEPARATOR_MARKER} END FILE: {rel_path_display}"
-                err_start      = f"{comment_char} {SEPARATOR_MARKER} ERROR START: {rel_path_display}"
-                err_msg_prefix = f"{comment_char} {SEPARATOR_MARKER} ERROR:"
-                err_end        = f"{comment_char} {SEPARATOR_MARKER} ERROR END: {rel_path_display}"
+                start_marker   = f"{comment_char} {FILE_START_MERGE} {rel_path_display}"
+                end_marker     = f"{comment_char} {FILE_END_MERGE} {rel_path_display}"
+                err_start      = f"{comment_char} {ERROR_START_MERGE} {rel_path_display}"
+                err_msg_prefix = f"{comment_char} {ERROR_MSG_MERGE}"
+                err_end        = f"{comment_char} {ERROR_END_MERGE} {rel_path_display}"
                 err_msg_suffix = "" 
                 # fmt: on
 
@@ -310,7 +322,7 @@ def split_source_code(
         stripped = line.strip()
 
         # Check START marker
-        start_match = START_PATTERN.match(stripped)
+        start_match = FILE_START_SPLIT.match(stripped)
         if start_match:
             if current_file:
                 current_file.close()
@@ -374,7 +386,7 @@ def split_source_code(
             continue
 
         # Check END marker
-        end_match = END_PATTERN.match(stripped)
+        end_match = FILE_END_SPLIT.match(stripped)
         if end_match and current_file:
             current_file.close()
             current_file = None
@@ -386,12 +398,12 @@ def split_source_code(
             continue
 
         # Check ERROR START
-        error_start_match = ERROR_START_PATTERN.match(stripped)
+        error_start_match = ERROR_START_SPLIT.match(stripped)
         if error_start_match:
             # Skip error block
             while current_line < len(lines):
                 line_stripped = lines[current_line].strip()
-                if ERROR_END_PATTERN.match(line_stripped):
+                if ERROR_END_SPLIT.match(line_stripped):
                     # Skip ERROR END
                     current_line += 1
                     while current_line < len(lines) and not lines[current_line].strip():
@@ -401,7 +413,7 @@ def split_source_code(
             continue
 
         # Skip error messages
-        if ERROR_MESSAGE_PATTERN.match(stripped):
+        if ERROR_MSG_SPLIT.match(stripped):
             current_line += 1
             continue
 
