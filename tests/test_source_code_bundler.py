@@ -155,10 +155,10 @@ class TestSourceCodeBundler(unittest.TestCase):
         src_dirname = os.path.basename(self.src_dir)
 
         expected_start = (
-            f"/* {source_code_bundler.FILE_START_MERGE} {src_dirname}/style.css */"
+            f"/* {source_code_bundler.START_FILE_MERGE} {src_dirname}/style.css */"
         )
         expected_end = (
-            f"/* {source_code_bundler.FILE_END_MERGE} {src_dirname}/style.css */"
+            f"/* {source_code_bundler.END_FILE_MERGE} {src_dirname}/style.css */"
         )
 
         self.assertIn(expected_start, content)
@@ -233,11 +233,11 @@ class TestSourceCodeBundler(unittest.TestCase):
     def test_regex_pattern_matching_for_css(self):
         """Test regex patterns correctly match CSS markers with comment delimiters."""
         test_content = [
-            f"/* {source_code_bundler.FILE_START_MERGE} test.css */",
+            f"/* {source_code_bundler.START_FILE_MERGE} test.css */",
             "body { color: blue; }",
-            f"/* {source_code_bundler.FILE_END_MERGE} test.css */",
-            f"/* {source_code_bundler.ERROR_START_MERGE} test.css */",
-            f"/* {source_code_bundler.ERROR_END_MERGE} test.css */",
+            f"/* {source_code_bundler.END_FILE_MERGE} test.css */",
+            f"/* {source_code_bundler.START_ERROR_MERGE} test.css */",
+            f"/* {source_code_bundler.END_ERROR_MERGE} test.css */",
         ]
 
         content = "\n".join(test_content)
@@ -267,9 +267,9 @@ class TestSourceCodeBundler(unittest.TestCase):
     def test_path_traversal_prevention(self):
         """Test that paths attempting directory traversal are skipped."""
         malicious_content = (
-            f"// {source_code_bundler.FILE_START_MERGE} ../../etc/passwd\n"
+            f"// {source_code_bundler.START_FILE_MERGE} ../../etc/passwd\n"
             "malicious content\n"
-            f"// {source_code_bundler.FILE_END_MERGE} ../../etc/passwd\n\n"
+            f"// {source_code_bundler.END_FILE_MERGE} ../../etc/passwd\n\n"
         )
 
         with open(self.bundle_file, "w", encoding="utf-8") as f:
@@ -284,15 +284,15 @@ class TestSourceCodeBundler(unittest.TestCase):
         """Test robust prevention of path traversal using os.path.normpath."""
         # We attempt to write to the parent of output_dir (which is test_dir)
         traversal_content = (
-            f"// {source_code_bundler.FILE_START_MERGE} ../outside.txt\n"
+            f"// {source_code_bundler.START_FILE_MERGE} ../outside.txt\n"
             "malicious content\n"
-            f"// {source_code_bundler.FILE_END_MERGE} ../outside.txt\n\n"
-            f"// {source_code_bundler.FILE_START_MERGE} subdir/../../outside_deep.txt\n"
+            f"// {source_code_bundler.END_FILE_MERGE} ../outside.txt\n\n"
+            f"// {source_code_bundler.START_FILE_MERGE} subdir/../../outside_deep.txt\n"
             "deep malicious content\n"
-            f"// {source_code_bundler.FILE_END_MERGE} subdir/../../outside_deep.txt\n\n"
-            f"// {source_code_bundler.FILE_START_MERGE} safe/../safe.txt\n"
+            f"// {source_code_bundler.END_FILE_MERGE} subdir/../../outside_deep.txt\n\n"
+            f"// {source_code_bundler.START_FILE_MERGE} safe/../safe.txt\n"
             "safe content\n"
-            f"// {source_code_bundler.FILE_END_MERGE} safe/../safe.txt\n\n"
+            f"// {source_code_bundler.END_FILE_MERGE} safe/../safe.txt\n\n"
         )
 
         with open(self.bundle_file, "w", encoding="utf-8") as f:
@@ -400,7 +400,7 @@ class TestSourceCodeBundler(unittest.TestCase):
             content = f.read()
 
         self.assertIn("binary.dat", content)
-        self.assertIn(source_code_bundler.ERROR_START_MERGE, content)
+        self.assertIn(source_code_bundler.START_ERROR_MERGE, content)
         self.assertIn("Cannot read file", content)
 
     def test_encoding_fallback(self):
@@ -449,8 +449,8 @@ class TestSourceCodeBundler(unittest.TestCase):
                 content = f.read()
 
             self.assertIn("problem.py", content)
-            self.assertIn(source_code_bundler.ERROR_START_MERGE, content)
-            self.assertIn(source_code_bundler.ERROR_END_MERGE, content)
+            self.assertIn(source_code_bundler.START_ERROR_MERGE, content)
+            self.assertIn(source_code_bundler.END_ERROR_MERGE, content)
 
         except PermissionError:
             self.skipTest("Cannot change file permissions in test environment")
@@ -464,7 +464,7 @@ class TestSourceCodeBundler(unittest.TestCase):
     def test_error_handling_in_split_function(self):
         """Test error handling when splitting corrupted bundle."""
         corrupted_content = (
-            f"// {source_code_bundler.FILE_START_MERGE} test.py\nprint('test')\n"
+            f"// {source_code_bundler.START_FILE_MERGE} test.py\nprint('test')\n"
         )
         # Missing END FILE marker intentionally
 
@@ -478,12 +478,12 @@ class TestSourceCodeBundler(unittest.TestCase):
     def test_split_duplicate_filename_handling(self, mock_print):
         """Test splitting handles duplicate filenames by renaming."""
         duplicate_content = (
-            f"// {source_code_bundler.FILE_START_MERGE} duplicate.txt\n"
+            f"// {source_code_bundler.START_FILE_MERGE} duplicate.txt\n"
             "Version 1\n"
-            f"// {source_code_bundler.FILE_END_MERGE} duplicate.txt\n\n"
-            f"// {source_code_bundler.FILE_START_MERGE} duplicate.txt\n"
+            f"// {source_code_bundler.END_FILE_MERGE} duplicate.txt\n\n"
+            f"// {source_code_bundler.START_FILE_MERGE} duplicate.txt\n"
             "Version 2\n"
-            f"// {source_code_bundler.FILE_END_MERGE} duplicate.txt\n\n"
+            f"// {source_code_bundler.END_FILE_MERGE} duplicate.txt\n\n"
         )
 
         with open(self.bundle_file, "w", encoding="utf-8") as f:
@@ -509,9 +509,9 @@ class TestSourceCodeBundler(unittest.TestCase):
 
         # Content in the bundle
         bundle_content = (
-            f"// {source_code_bundler.FILE_START_MERGE} {filename}\n"
+            f"// {source_code_bundler.START_FILE_MERGE} {filename}\n"
             "New Content\n"
-            f"// {source_code_bundler.FILE_END_MERGE} {filename}\n\n"
+            f"// {source_code_bundler.END_FILE_MERGE} {filename}\n\n"
         )
 
         with open(self.bundle_file, "w", encoding="utf-8") as f:

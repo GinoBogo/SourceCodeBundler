@@ -52,21 +52,21 @@ COMMENT_SYNTAX = {
 SEPARATOR_MARKER = "[[ SCB ]]"
 
 # Merge Constants
-FILE_START_MERGE  = f"{SEPARATOR_MARKER} START FILE:"
-FILE_END_MERGE    = f"{SEPARATOR_MARKER} END FILE:"
-ERROR_START_MERGE = f"{SEPARATOR_MARKER} START ERROR:"
+START_FILE_MERGE  = f"{SEPARATOR_MARKER} START FILE:"
+END_FILE_MERGE    = f"{SEPARATOR_MARKER} END FILE:"
+START_ERROR_MERGE = f"{SEPARATOR_MARKER} START ERROR:"
 ERROR_MSG_MERGE   = f"{SEPARATOR_MARKER} ERROR:"
-ERROR_END_MERGE   = f"{SEPARATOR_MARKER} END ERROR:"
+END_ERROR_MERGE   = f"{SEPARATOR_MARKER} END ERROR:"
 
 # Split Regex Patterns
 def _create_split_pattern(marker):
     return re.compile(r"^(\S+)\s+" + re.escape(marker) + r"\s+(.+?)(?:\s*\*/)?$")
 
-FILE_START_SPLIT  = _create_split_pattern(FILE_START_MERGE)
-FILE_END_SPLIT    = _create_split_pattern(FILE_END_MERGE)
-ERROR_START_SPLIT = _create_split_pattern(ERROR_START_MERGE)
+START_FILE_SPLIT  = _create_split_pattern(START_FILE_MERGE)
+END_FILE_SPLIT    = _create_split_pattern(END_FILE_MERGE)
+START_ERROR_SPLIT = _create_split_pattern(START_ERROR_MERGE)
 ERROR_MSG_SPLIT   = _create_split_pattern(ERROR_MSG_MERGE)
-ERROR_END_SPLIT   = _create_split_pattern(ERROR_END_MERGE)
+END_ERROR_SPLIT   = _create_split_pattern(END_ERROR_MERGE)
 # fmt: on
 
 
@@ -241,18 +241,18 @@ def merge_source_code(
             # Construct markers
             # fmt: off
             if is_css_file:
-                start_marker   = f"/* {FILE_START_MERGE} {rel_path_display} */"
-                end_marker     = f"/* {FILE_END_MERGE} {rel_path_display} */"
-                err_start      = f"/* {ERROR_START_MERGE} {rel_path_display} */"
+                start_marker   = f"/* {START_FILE_MERGE} {rel_path_display} */"
+                end_marker     = f"/* {END_FILE_MERGE} {rel_path_display} */"
+                err_start      = f"/* {START_ERROR_MERGE} {rel_path_display} */"
                 err_msg_prefix = f"/* {ERROR_MSG_MERGE}"
-                err_end        = f"/* {ERROR_END_MERGE} {rel_path_display} */"
+                err_end        = f"/* {END_ERROR_MERGE} {rel_path_display} */"
                 err_msg_suffix = " */"
             else:
-                start_marker   = f"{comment_char} {FILE_START_MERGE} {rel_path_display}"
-                end_marker     = f"{comment_char} {FILE_END_MERGE} {rel_path_display}"
-                err_start      = f"{comment_char} {ERROR_START_MERGE} {rel_path_display}"
+                start_marker   = f"{comment_char} {START_FILE_MERGE} {rel_path_display}"
+                end_marker     = f"{comment_char} {END_FILE_MERGE} {rel_path_display}"
+                err_start      = f"{comment_char} {START_ERROR_MERGE} {rel_path_display}"
                 err_msg_prefix = f"{comment_char} {ERROR_MSG_MERGE}"
-                err_end        = f"{comment_char} {ERROR_END_MERGE} {rel_path_display}"
+                err_end        = f"{comment_char} {END_ERROR_MERGE} {rel_path_display}"
                 err_msg_suffix = "" 
                 # fmt: on
 
@@ -322,7 +322,7 @@ def split_source_code(
         stripped = line.strip()
 
         # Check START marker
-        start_match = FILE_START_SPLIT.match(stripped)
+        start_match = START_FILE_SPLIT.match(stripped)
         if start_match:
             if current_file:
                 current_file.close()
@@ -386,7 +386,7 @@ def split_source_code(
             continue
 
         # Check END marker
-        end_match = FILE_END_SPLIT.match(stripped)
+        end_match = END_FILE_SPLIT.match(stripped)
         if end_match and current_file:
             current_file.close()
             current_file = None
@@ -398,12 +398,12 @@ def split_source_code(
             continue
 
         # Check ERROR START
-        error_start_match = ERROR_START_SPLIT.match(stripped)
+        error_start_match = START_ERROR_SPLIT.match(stripped)
         if error_start_match:
             # Skip error block
             while current_line < len(lines):
                 line_stripped = lines[current_line].strip()
-                if ERROR_END_SPLIT.match(line_stripped):
+                if END_ERROR_SPLIT.match(line_stripped):
                     # Skip ERROR END
                     current_line += 1
                     while current_line < len(lines) and not lines[current_line].strip():
