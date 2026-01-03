@@ -43,7 +43,7 @@ DEFAULT_EXTENSIONS = [
 
 COMMENT_SYNTAX = {
     ".py": "#",
-    ".rs": "///",
+    ".rs": "//",
     ".c": "//",
     ".h": "//",
     ".cpp": "//",
@@ -233,9 +233,6 @@ def merge_source_code(
 
         for index, (file_path, rel_path_display) in enumerate(file_entries, 1):
             # Initialize variables
-            comment_char = "//"
-
-            # Default error markers to prevent UnboundLocalError
             suffix = file_path.suffix.lower()
             comment_char = COMMENT_SYNTAX.get(suffix, "//")
             is_css_file = suffix == ".css"
@@ -243,11 +240,11 @@ def merge_source_code(
             # Construct markers
             # fmt: off
             if is_css_file:
-                start_marker   = f"/* {START_FILE_MERGE} {rel_path_display} */"
-                end_marker     = f"/* {END_FILE_MERGE} {rel_path_display} */"
-                err_start      = f"/* {START_ERROR_MERGE} {rel_path_display} */"
-                err_msg_prefix = f"/* {ERROR_MSG_MERGE}"
-                err_end        = f"/* {END_ERROR_MERGE} {rel_path_display} */"
+                start_marker   = f"{comment_char} {START_FILE_MERGE} {rel_path_display} */"
+                end_marker     = f"{comment_char} {END_FILE_MERGE} {rel_path_display} */"
+                err_start      = f"{comment_char} {START_ERROR_MERGE} {rel_path_display} */"
+                err_msg_prefix = f"{comment_char} {ERROR_MSG_MERGE}"
+                err_end        = f"{comment_char} {END_ERROR_MERGE} {rel_path_display} */"
                 err_msg_suffix = " */"
             else:
                 start_marker   = f"{comment_char} {START_FILE_MERGE} {rel_path_display}"
@@ -950,7 +947,9 @@ def run_gui() -> None:
     input_frame.pack(fill=tk.BOTH, expand=True)
     input_frame.columnconfigure(1, weight=1)
 
-    source_label = ttk.Label(input_frame, text="Source Directory:")
+    source_label = ttk.Label(
+        input_frame, text="Source Directory:", width=15, anchor="e"
+    )
     source_label.grid(row=0, column=0, sticky=tk.E, pady=5)
 
     source_entry = ttk.Combobox(
@@ -967,7 +966,9 @@ def run_gui() -> None:
     )
     source_button.grid(row=0, column=2, padx=5, pady=5)
 
-    destination_label = ttk.Label(input_frame, text="Output File:")
+    destination_label = ttk.Label(
+        input_frame, text="Output File:", width=15, anchor="e"
+    )
     destination_label.grid(row=1, column=0, sticky=tk.E, pady=5)
 
     destination_entry = ttk.Combobox(
