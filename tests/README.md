@@ -60,6 +60,9 @@ This directory contains unit tests for the Source Code Bundler application. The 
 - **test_apply_patch_execution_failure**: Test handling of patch command failure.
 - **test_apply_patch_integration**: Integration test for patch application (skipped if patch not installed).
 
+### CLI Tests
+- **test_cli_patch_mode**: Test that the CLI correctly handles the --patch argument.
+
 ## Running Tests
 
 You can run the tests using the following command from the project root:

@@ -626,6 +626,13 @@ def run_cli() -> None:
         help="Split bundled file to output directory",
     )
 
+    group.add_argument(
+        "--patch",
+        nargs=2,
+        metavar=("PATCH_FILE", "TARGET_DIR"),
+        help="Apply a patch file to a target directory",
+    )
+
     parser.add_argument(
         "--extensions",
         nargs="+",
@@ -657,6 +664,14 @@ def run_cli() -> None:
             print("Split completed successfully.")
         except Exception as e:
             print(f"Error during split: {e}")
+    elif args.patch:
+        patch_file, target_dir = args.patch
+        print(f"Applying patch '{patch_file}' to '{target_dir}'...")
+        try:
+            apply_patch(patch_file, target_dir)
+            print("Patch applied successfully.")
+        except Exception as e:
+            print(f"Error during patch: {e}")
 
 
 def run_gui() -> None:

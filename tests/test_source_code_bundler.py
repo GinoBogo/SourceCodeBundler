@@ -1049,6 +1049,20 @@ class TestSourceCodeBundler(unittest.TestCase):
 
         self.assertEqual(content, "Hello Python\n")
 
+    # ============================================================================
+    # CLI Tests
+    # ============================================================================
+
+    @patch("builtins.print")
+    @patch("source_code_bundler.apply_patch")
+    def test_cli_patch_mode(self, mock_apply_patch, mock_print):
+        """Test that the CLI correctly handles the --patch argument."""
+        test_args = ["source_code_bundler.py", "--patch", "test.patch", "target_dir"]
+        with patch.object(sys, "argv", test_args):
+            source_code_bundler.run_cli()
+
+        mock_apply_patch.assert_called_once_with("test.patch", "target_dir")
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
