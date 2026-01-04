@@ -733,6 +733,8 @@ def run_gui() -> None:
     ):
         style.theme_use("vista")
 
+    style.configure("TNotebook.Tab", width=15, anchor="center")
+
     filetypes_list = [(f"{ext} files", f"*{ext}") for ext in DEFAULT_EXTENSIONS]
     filetypes_list.extend([("Text files", "*.txt"), ("All files", "*.*")])
 
@@ -754,6 +756,7 @@ def run_gui() -> None:
     split_dest_history = config.get("split_dest_history", [])
     patch_source_history = config.get("patch_source_history", [])
     patch_dest_history = config.get("patch_dest_history", [])
+    filter_rules = config.get("filters", [])
 
     def select_source() -> None:
         """Open file dialog for source selection based on current mode."""
@@ -793,12 +796,74 @@ def run_gui() -> None:
         """Open a dialog to select file extensions."""
         dialog = tk.Toplevel(root)
         dialog.title("Options")
-        dialog.geometry("300x350")
+        dialog.geometry("350x400")
         dialog.minsize(300, 350)
 
-        ttk.Label(dialog, text="Include Extensions:").pack(pady=10)
+        def create_rule_input_dialog(
+            title: str, prompt_text: str, initial_value: str = ""
+        ) -> Optional[str]:
+            """Create a dialog to get a filter rule from the user."""
+            entry_var = tk.StringVar(value=initial_value)
+            result = None
 
-        list_frame = ttk.Frame(dialog)
+            def on_apply():
+                nonlocal result
+                result = entry_var.get().strip()
+                if result:
+                    input_dialog.destroy()
+
+            input_dialog = tk.Toplevel(dialog)
+            input_dialog.transient(dialog)
+            input_dialog.grab_set()
+            input_dialog.title(title)
+            input_dialog.minsize(320, 130)
+
+            # Center dialog relative to parent
+            dialog.update_idletasks()
+            x = dialog.winfo_x() + (dialog.winfo_width() // 2) - (300 // 2)
+            y = dialog.winfo_y() + (dialog.winfo_height() // 2) - (150 // 2)
+            input_dialog.geometry(f"300x150+{x}+{y}")
+
+            content_frame = ttk.Frame(input_dialog, padding=10)
+            content_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+
+            ttk.Label(content_frame, text=prompt_text).pack(anchor=tk.W, pady=(0, 5))
+
+            entry = ttk.Entry(content_frame, textvariable=entry_var)
+            entry.pack(fill=tk.X)
+            entry.focus_set()
+            entry.select_range(0, "end")
+            entry.bind("<Return>", lambda e: on_apply())
+
+            button_frame = ttk.Frame(input_dialog, padding=10)
+            button_frame.pack(side=tk.BOTTOM, fill=tk.X)
+
+            btn_container = ttk.Frame(button_frame)
+            btn_container.pack(anchor=tk.CENTER)
+
+            ttk.Button(
+                btn_container, text="Apply", command=on_apply, cursor="hand2"
+            ).pack(side=tk.LEFT, padx=5, pady=10)
+            ttk.Button(
+                btn_container,
+                text="Cancel",
+                command=input_dialog.destroy,
+                cursor="hand2",
+            ).pack(side=tk.LEFT, padx=5, pady=10)
+
+            input_dialog.wait_window()
+            return result
+
+        notebook = ttk.Notebook(dialog)
+        notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+        # Tab 1: Extensions
+        extensions_tab = ttk.Frame(notebook)
+        notebook.add(extensions_tab, text="Extensions")
+
+        ttk.Label(extensions_tab, text="Include Extensions:").pack(pady=10)
+
+        list_frame = ttk.Frame(extensions_tab)
         list_frame.pack(fill=tk.BOTH, expand=True, padx=10)
 
         tree = ttk.Treeview(list_frame, show="tree", selectmode="none")
@@ -815,9 +880,101 @@ def run_gui() -> None:
 
         tree.bind("<Button-1>", lambda e: toggle_checkbox(e, tree, extension_vars))
 
+        # Tab 2: Filters
+        filters_tab = ttk.Frame(notebook)
+        notebook.add(filters_tab, text="Filters")
+
+        filter_frame = ttk.Frame(filters_tab)
+        filter_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        filter_frame.rowconfigure(0, weight=1)
+        filter_frame.columnconfigure(0, weight=1)
+
+        filter_tree = ttk.Treeview(
+            filter_frame, columns=("check", "rule"), show="headings"
+        )
+        filter_tree.heading("check", text="")
+        filter_tree.column("check", width=40, anchor="center", stretch=False)
+
+        filter_tree.heading("rule", text="Filter Rule")
+        filter_tree.column("rule", anchor="w", stretch=True)
+
+        filter_tree.grid(row=0, column=0, sticky=tk.NSEW)
+
+        scrollbar = ttk.Scrollbar(filter_frame, command=filter_tree.yview)
+        scrollbar.grid(row=0, column=1, sticky=tk.NS)
+        filter_tree.config(yscrollcommand=scrollbar.set)
+
+        def toggle_filter(event):
+            item_id = filter_tree.identify_row(event.y)
+            if not item_id:
+                return
+            vals = filter_tree.item(item_id, "values")
+            new_char = (
+                GUI_UNCHECKED_CHAR if vals[0] == GUI_CHECKED_CHAR else GUI_CHECKED_CHAR
+            )
+            filter_tree.item(item_id, values=(new_char, vals[1]))
+
+        filter_tree.bind("<Button-1>", toggle_filter)
+
+        def insert_filter():
+            rule = create_rule_input_dialog(
+                "Insert Filter", "Enter filter rule (e.g., node_modules):"
+            )
+            if rule:
+                filter_tree.insert("", "end", values=(GUI_CHECKED_CHAR, rule))
+
+        def edit_filter():
+            selected = filter_tree.selection()
+            if not selected:
+                return
+            item = filter_tree.item(selected[0])
+            new_rule = create_rule_input_dialog(
+                "Edit Filter", "Edit filter rule:", item["values"][1]
+            )
+            if new_rule:
+                filter_tree.item(selected[0], values=(item["values"][0], new_rule))
+
+        def remove_filter():
+            selected = filter_tree.selection()
+            if selected:
+                filter_tree.delete(selected[0])
+
+        context_menu = tk.Menu(filter_tree, tearoff=0)
+        context_menu.add_command(label="Insert", command=insert_filter)
+        context_menu.add_command(label="Remove", command=remove_filter)
+        context_menu.add_command(label="Edit", command=edit_filter)
+
+        def show_context_menu(event):
+            item = filter_tree.identify_row(event.y)
+            if item:
+                filter_tree.selection_set(item)
+                context_menu.entryconfig("Remove", state="normal")
+                context_menu.entryconfig("Edit", state="normal")
+            else:
+                context_menu.entryconfig("Remove", state="disabled")
+                context_menu.entryconfig("Edit", state="disabled")
+            context_menu.post(event.x_root, event.y_root)
+
+        filter_tree.bind("<Button-3>", show_context_menu)
+        filter_tree.bind("<Escape>", lambda e: context_menu.unpost())
+
+        for f in filter_rules:
+            char = GUI_CHECKED_CHAR if f.get("active", True) else GUI_UNCHECKED_CHAR
+            filter_tree.insert("", "end", values=(char, f["rule"]))
+
+        def close_options():
+            filter_rules.clear()
+            for child in filter_tree.get_children():
+                vals = filter_tree.item(child, "values")
+                active = vals[0] == GUI_CHECKED_CHAR
+                filter_rules.append({"rule": vals[1], "active": active})
+            dialog.destroy()
+
+        dialog.protocol("WM_DELETE_WINDOW", close_options)
+
         ttk.Button(
-            dialog, text="Close", command=dialog.destroy, width=10, cursor="hand2"
-        ).pack(pady=20)
+            dialog, text="Close", command=close_options, width=10, cursor="hand2"
+        ).pack(pady=(10, 20))
 
     def run_operation() -> None:
         """Execute merge or split operation based on current mode."""
@@ -1108,6 +1265,7 @@ def run_gui() -> None:
         config["split_dest_history"] = split_dest_history
         config["patch_source_history"] = patch_source_history
         config["patch_dest_history"] = patch_dest_history
+        config["filters"] = filter_rules
         save_config(config)
         root.destroy()
 
