@@ -87,7 +87,7 @@ def load_config() -> dict:
 
     Returns:
         dict: Configuration dictionary, empty dict if file doesn't exist or is
-        invalid
+            invalid.
     """
     try:
         with open(CONFIG_FILE, "r", encoding="utf-8") as f:
@@ -100,7 +100,7 @@ def save_config(config: dict) -> None:
     """Saves configuration to the JSON file.
 
     Args:
-        config: Configuration dictionary to save
+        config: Configuration dictionary to save.
     """
     try:
         with open(CONFIG_FILE, "w", encoding="utf-8") as f:
@@ -114,7 +114,14 @@ def save_config(config: dict) -> None:
 
 
 def _is_binary_content(content: str) -> bool:
-    """Checks if content appears to be binary based on control characters."""
+    """Checks if content appears to be binary based on control characters.
+
+    Args:
+        content: The string content to check.
+
+    Returns:
+        bool: True if content appears to be binary, False otherwise.
+    """
     if not content:
         return False
 
@@ -134,7 +141,15 @@ def _is_binary_content(content: str) -> bool:
 
 
 def _matches_filter(path: Path, filters: Optional[List[dict]]) -> bool:
-    """Checks if path matches any active filter rule."""
+    """Checks if path matches any active filter rule.
+
+    Args:
+        path: The file path to check.
+        filters: List of filter dictionaries.
+
+    Returns:
+        bool: True if the path matches a filter, False otherwise.
+    """
     if not filters:
         return False
 
@@ -153,17 +168,163 @@ def _matches_filter(path: Path, filters: Optional[List[dict]]) -> bool:
     return False
 
 
+def _collect_files(
+    source_path: Path, extensions: List[str], filters: Optional[List[dict]]
+) -> List[Path]:
+    """Collects files matching extensions and filters.
+
+    Args:
+        source_path: Root directory to scan.
+        extensions: List of allowed file extensions.
+        filters: List of filter dictionaries.
+
+    Returns:
+        List[Path]: List of matching file paths.
+    """
+    matching_files = []
+    for file_path in source_path.rglob("*"):
+        if file_path.is_file() and not any(
+            part.startswith(".") for part in file_path.parts
+        ):
+            if _matches_filter(file_path, filters):
+                continue
+
+            if file_path.suffix.lower() in extensions:
+                matching_files.append(file_path)
+    return matching_files
+
+
+def _get_markers(suffix: str, rel_path: str) -> dict:
+    """Generates start, end, and error markers based on file extension.
+
+    Args:
+        suffix: File extension (e.g., '.py').
+        rel_path: Relative path to display in markers.
+
+    Returns:
+        dict: Dictionary containing marker strings.
+    """
+    comment_char = COMMENT_SYNTAX.get(suffix, "//")
+    is_css = suffix == ".css"
+
+    markers = {
+        "start": f"{comment_char} {START_FILE_MERGE} {rel_path}",
+        "end": f"{comment_char} {END_FILE_MERGE} {rel_path}",
+        "err_start": f"{comment_char} {START_ERROR_MERGE} {rel_path}",
+        "err_msg_prefix": f"{comment_char} {ERROR_MSG_MERGE}",
+        "err_end": f"{comment_char} {END_ERROR_MERGE} {rel_path}",
+        "err_msg_suffix": "",
+    }
+
+    if is_css:
+        markers["start"] += " */"
+        markers["end"] += " */"
+        markers["err_start"] += " */"
+        markers["err_end"] += " */"
+        markers["err_msg_suffix"] = " */"
+
+    return markers
+
+
+def _resolve_split_path(output_dir: str, original_path_str: str) -> Optional[Path]:
+    """Resolves and sanitizes the output path for splitting.
+
+    Args:
+        output_dir: Base output directory.
+        original_path_str: Path string extracted from the bundle.
+
+    Returns:
+        Optional[Path]: Resolved path if safe, None otherwise.
+    """
+    try:
+        posix_path = PurePosixPath(original_path_str)
+        if posix_path.is_absolute():
+            posix_path = posix_path.relative_to(posix_path.root)
+
+        rel_path_str = str(posix_path)
+        if os.path.isabs(rel_path_str):
+            print(f"Skipping absolute path: {original_path_str}")
+            return None
+
+        full_path = os.path.abspath(os.path.join(output_dir, rel_path_str))
+        base_path = os.path.abspath(output_dir)
+
+        if not os.path.commonpath([base_path, full_path]) == base_path:
+            print(f"Skipping unsafe path: {original_path_str}")
+            return None
+
+        return Path(full_path)
+    except Exception as e:
+        print(f"Error processing path {original_path_str}: {e}")
+        return None
+
+
+def _handle_file_collision(target_path: Path, overwrite: bool) -> Path:
+    """Handles duplicate filenames by renaming or overwriting.
+
+    Args:
+        target_path: The intended file path.
+        overwrite: Whether to overwrite existing files.
+
+    Returns:
+        Path: The final path to write to (may be renamed).
+
+    Raises:
+        RuntimeError: If too many duplicate files exist.
+    """
+    if target_path.exists() and not (overwrite and target_path.is_file()):
+        stem = target_path.stem
+        suffix = target_path.suffix
+        counter = 1
+        max_duplicates = 10000
+
+        while target_path.exists():
+            if counter > max_duplicates:
+                raise RuntimeError(f"Too many duplicate files for {stem}{suffix}")
+            target_path = target_path.with_name(f"{stem}_{counter}{suffix}")
+            counter += 1
+        print(f"Duplicate filename detected. Renamed to: {target_path.name}")
+    return target_path
+
+
+def _skip_error_section(lines: List[str], current_line: int) -> int:
+    """Skips lines until the end of an error block.
+
+    Args:
+        lines: List of all lines in the file.
+        current_line: Index of the current line.
+
+    Returns:
+        int: Index of the line after the error block.
+    """
+    error_line_count = 0
+    max_error_lines = 1000
+
+    while current_line < len(lines) and error_line_count < max_error_lines:
+        line_stripped = lines[current_line].strip()
+        if END_ERROR_SPLIT.match(line_stripped):
+            current_line += 1
+            while current_line < len(lines) and not lines[current_line].strip():
+                current_line += 1
+            return current_line
+        current_line += 1
+        error_line_count += 1
+
+    print("Warning: Error block exceeded max lines, skipping remaining content")
+    return current_line
+
+
 def read_file_content(file_path: Path) -> str:
     """Attempts to read file content using multiple encodings.
 
     Args:
-        file_path: Path object pointing to the file to read
+        file_path: Path object pointing to the file to read.
 
     Returns:
-        str: File content as string
+        str: File content as string.
 
     Raises:
-        UnicodeDecodeError: If file cannot be decoded with supported encodings
+        UnicodeDecodeError: If file cannot be decoded with supported encodings.
     """
     for encoding in FILE_ENCODINGS:
         try:
@@ -190,16 +351,14 @@ def merge_source_code(
     filters: Optional[List[dict]] = None,
     progress_callback: Optional[Callable] = None,
 ) -> None:
-    """
-    Recursively scans a directory for source files with specified extensions,
-    combines them into a single output file with descriptive headers.
+    """Recursively scans a directory and combines source files.
 
     Args:
-        source_dir: Directory to scan for source files
-        output_file: Path to the output combined file
-        extensions: List of file extensions to include (defaults to DEFAULT_EXTENSIONS)
-        filters: List of filter rules to exclude files/directories
-        progress_callback: Optional callback for progress updates (current, total)
+        source_dir: Directory to scan for source files.
+        output_file: Path to the output combined file.
+        extensions: List of file extensions to include.
+        filters: List of filter rules to exclude files/directories.
+        progress_callback: Optional callback for progress updates (current, total).
     """
     if extensions is None:
         extensions = DEFAULT_EXTENSIONS
@@ -208,16 +367,7 @@ def merge_source_code(
     output_path = Path(output_file)
 
     # Collect matching files
-    matching_files = []
-    for file_path in source_path.rglob("*"):
-        if file_path.is_file() and not any(
-            part.startswith(".") for part in file_path.parts
-        ):
-            if _matches_filter(file_path, filters):
-                continue
-
-            if file_path.suffix.lower() in extensions:
-                matching_files.append(file_path)
+    matching_files = _collect_files(source_path, extensions, filters)
 
     # Pre-calculate display paths and sort by path
     file_entries = []
@@ -296,30 +446,11 @@ def merge_source_code(
         for index, (file_path, rel_path_display) in enumerate(file_entries, 1):
             # Initialize variables
             suffix = file_path.suffix.lower()
-            comment_char = COMMENT_SYNTAX.get(suffix, "//")
-            is_css_file = suffix == ".css"
-
-            # Construct markers
-            # fmt: off
-            if is_css_file:
-                start_marker   = f"{comment_char} {START_FILE_MERGE} {rel_path_display} */"
-                end_marker     = f"{comment_char} {END_FILE_MERGE} {rel_path_display} */"
-                err_start      = f"{comment_char} {START_ERROR_MERGE} {rel_path_display} */"
-                err_msg_prefix = f"{comment_char} {ERROR_MSG_MERGE}"
-                err_end        = f"{comment_char} {END_ERROR_MERGE} {rel_path_display} */"
-                err_msg_suffix = " */"
-            else:
-                start_marker   = f"{comment_char} {START_FILE_MERGE} {rel_path_display}"
-                end_marker     = f"{comment_char} {END_FILE_MERGE} {rel_path_display}"
-                err_start      = f"{comment_char} {START_ERROR_MERGE} {rel_path_display}"
-                err_msg_prefix = f"{comment_char} {ERROR_MSG_MERGE}"
-                err_end        = f"{comment_char} {END_ERROR_MERGE} {rel_path_display}"
-                err_msg_suffix = "" 
-                # fmt: on
+            markers = _get_markers(suffix, rel_path_display)
 
             try:
                 # Write Start
-                outfile.write(f"{start_marker}\n")
+                outfile.write(f"{markers['start']}\n")
 
                 # Write Content (from cache)
                 content, _, _, error = content_cache[file_path]
@@ -331,7 +462,7 @@ def merge_source_code(
                     outfile.write("\n")
 
                 # Write End
-                outfile.write(f"{end_marker}\n\n")
+                outfile.write(f"{markers['end']}\n\n")
 
             except Exception as e:
                 error_msg = (
@@ -340,7 +471,7 @@ def merge_source_code(
                     else str(e)
                 )
                 outfile.write(
-                    f"{err_start}\n{err_msg_prefix} {error_msg}{err_msg_suffix}\n{err_end}\n\n"
+                    f"{markers['err_start']}\n{markers['err_msg_prefix']} {error_msg}{markers['err_msg_suffix']}\n{markers['err_end']}\n\n"
                 )
 
             if progress_callback:
@@ -354,16 +485,14 @@ def split_source_code(
     filters: Optional[List[dict]] = None,
     progress_callback: Optional[Callable] = None,
 ) -> None:
-    """
-    Reconstructs individual source files from a combined file created by
-    merge_source_code.
+    """Reconstructs individual source files from a combined file.
 
     Args:
-        source_file: Combined source file to split
-        output_dir: Directory where individual files will be created
-        overwrite: If True, overwrite existing files instead of renaming
-        filters: List of filter rules to exclude files/directories
-        progress_callback: Optional callback for progress updates (current, total)
+        source_file: Combined source file to split.
+        output_dir: Directory where individual files will be created.
+        overwrite: If True, overwrite existing files instead of renaming.
+        filters: List of filter rules to exclude files/directories.
+        progress_callback: Optional callback for progress updates (current, total).
     """
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
@@ -392,69 +521,24 @@ def split_source_code(
                 current_file = None
 
             original_path_str = start_match.group(2)
+            target_path = _resolve_split_path(output_dir, original_path_str)
 
-            try:
-                # Sanitize path using os.path.abspath and os.path.commonpath
-                # First, treat the path as POSIX to handle forward slashes from
-                # the bundle format
-                posix_path = PurePosixPath(original_path_str)
-
-                # If absolute, make it relative to root (strip leading /)
-                if posix_path.is_absolute():
-                    posix_path = posix_path.relative_to(posix_path.root)
-
-                # Convert to string (this keeps forward slashes)
-                rel_path_str = str(posix_path)
-
-                # Ensure the path is not absolute for the current OS
-                if os.path.isabs(rel_path_str):
-                    print(f"Skipping absolute path: {original_path_str}")
-                    current_file = None
-                    current_line += 1
-                    continue
-
-                # Resolve full path
-                full_path = os.path.abspath(os.path.join(output_dir, rel_path_str))
-                base_path = os.path.abspath(output_dir)
-
-                # Check if the resolved path is within the output directory
-                if not os.path.commonpath([base_path, full_path]) == base_path:
-                    print(f"Skipping unsafe path: {original_path_str}")
-                    current_file = None
-                    current_line += 1
-                    continue
-
-                target_path = Path(full_path)
-
+            if target_path:
                 if _matches_filter(target_path, filters):
                     print(f"Skipping filtered path: {original_path_str}")
                     current_file = None
                     current_line += 1
                     continue
 
-                target_path.parent.mkdir(parents=True, exist_ok=True)
-
-                # Avoid overwriting existing files by appending a counter
-                if target_path.exists() and not (overwrite and target_path.is_file()):
-                    stem = target_path.stem
-                    suffix = target_path.suffix
-                    counter = 1
-                    max_duplicates = 10000  # Safety limit
-
-                    while target_path.exists():
-                        if counter > max_duplicates:
-                            raise RuntimeError(
-                                f"Too many duplicate files for {stem}{suffix}"
-                            )
-                        target_path = target_path.with_name(f"{stem}_{counter}{suffix}")
-                        counter += 1
-                    print(
-                        f"Duplicate filename detected. Renamed to: {target_path.name}"
-                    )
-
-                current_file = target_path.open("w", encoding="utf-8", newline="")
-            except Exception as e:
-                print(f"Error processing path {original_path_str}: {e}")
+                try:
+                    target_path.parent.mkdir(parents=True, exist_ok=True)
+                    target_path = _handle_file_collision(target_path, overwrite)
+                    current_file = target_path.open("w", encoding="utf-8", newline="")
+                except Exception as e:
+                    print(f"Error creating file {target_path}: {e}")
+                    current_file = None
+            else:
+                # Path resolution failed
                 current_file = None
 
             # Skip START line
@@ -476,23 +560,7 @@ def split_source_code(
         # Check ERROR START
         error_start_match = START_ERROR_SPLIT.match(stripped)
         if error_start_match:
-            error_line_count = 0
-            max_error_lines = 1000  # Safety limit
-
-            while current_line < len(lines) and error_line_count < max_error_lines:
-                line_stripped = lines[current_line].strip()
-                if END_ERROR_SPLIT.match(line_stripped):
-                    current_line += 1  # Skip END line
-                    while current_line < len(lines) and not lines[current_line].strip():
-                        current_line += 1  # Skip empty lines
-                    break
-                current_line += 1
-                error_line_count += 1
-            else:
-                print(
-                    "Warning: Error block exceeded max lines, skipping remaining content"
-                )
-
+            current_line = _skip_error_section(lines, current_line)
             continue
 
         # Skip error messages
@@ -518,13 +586,16 @@ def apply_patch(
     target_dir: str,
     progress_callback: Optional[Callable] = None,
 ) -> None:
-    """
-    Applies a patch file to the target directory using the system 'patch' command.
+    """Applies a patch file to the target directory using the system 'patch' command.
 
     Args:
-        patch_file: Path to the patch file
-        target_dir: Directory to apply the patch in
-        progress_callback: Optional callback
+        patch_file: Path to the patch file.
+        target_dir: Directory to apply the patch in.
+        progress_callback: Optional callback for progress updates.
+
+    Raises:
+        FileNotFoundError: If 'patch' command is missing.
+        RuntimeError: If patch application fails.
     """
     if not shutil.which("patch"):
         raise FileNotFoundError("The 'patch' command is not found in system PATH.")
@@ -548,10 +619,10 @@ def select_directory(title: str = "Select Directory") -> str:
     """Opens a directory selection dialog.
 
     Args:
-        title: Dialog window title
+        title: Dialog window title.
 
     Returns:
-        str: Selected directory path or empty string if canceled
+        str: Selected directory path or empty string if canceled.
     """
     return filedialog.askdirectory(title=title)
 
@@ -560,11 +631,11 @@ def select_file(title: str = "Select File", filetypes: Optional[List] = None) ->
     """Opens a file selection dialog.
 
     Args:
-        title: Dialog window title
-        filetypes: List of file type tuples [(description, pattern)]
+        title: Dialog window title.
+        filetypes: List of file type tuples [(description, pattern)].
 
     Returns:
-        str: Selected file path or empty string if canceled
+        str: Selected file path or empty string if canceled.
     """
     return filedialog.askopenfilename(title=title, filetypes=filetypes)
 
@@ -573,13 +644,76 @@ def save_file_dialog(title: str = "Save File", filetypes: Optional[List] = None)
     """Opens a save file dialog.
 
     Args:
-        title: Dialog window title
-        filetypes: List of file type tuples [(description, pattern)]
+        title: Dialog window title.
+        filetypes: List of file type tuples [(description, pattern)].
 
     Returns:
-        str: Selected save path or empty string if canceled
+        str: Selected save path or empty string if canceled.
     """
     return filedialog.asksaveasfilename(title=title, filetypes=filetypes)
+
+
+def _create_rule_input_dialog(
+    parent: tk.Toplevel, title: str, prompt_text: str, initial_value: str = ""
+) -> Optional[str]:
+    """Create a dialog to get a filter rule from the user.
+
+    Args:
+        parent: Parent window widget.
+        title: Dialog title.
+        prompt_text: Text to display in the dialog.
+        initial_value: Initial value for the input field.
+
+    Returns:
+        Optional[str]: User input string, or None if canceled.
+    """
+    entry_var = tk.StringVar(value=initial_value)
+    result = None
+
+    def on_apply():
+        nonlocal result
+        result = entry_var.get().strip()
+        if result:
+            input_dialog.destroy()
+
+    input_dialog = tk.Toplevel(parent)
+    input_dialog.transient(parent)
+    input_dialog.grab_set()
+    input_dialog.title(title)
+    input_dialog.minsize(320, 130)
+
+    # Center dialog relative to parent
+    parent.update_idletasks()
+    x = parent.winfo_x() + (parent.winfo_width() // 2) - (300 // 2)
+    y = parent.winfo_y() + (parent.winfo_height() // 2) - (150 // 2)
+    input_dialog.geometry(f"300x150+{x}+{y}")
+
+    content_frame = ttk.Frame(input_dialog, padding=10)
+    content_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+
+    ttk.Label(content_frame, text=prompt_text).pack(anchor=tk.W, pady=(0, 5))
+
+    entry = ttk.Entry(content_frame, textvariable=entry_var)
+    entry.pack(fill=tk.X)
+    entry.focus_set()
+    entry.select_range(0, "end")
+    entry.bind("<Return>", lambda e: on_apply())
+
+    button_frame = ttk.Frame(input_dialog, padding=10)
+    button_frame.pack(side=tk.BOTTOM, fill=tk.X)
+
+    btn_container = ttk.Frame(button_frame)
+    btn_container.pack(anchor=tk.CENTER)
+
+    ttk.Button(btn_container, text="Apply", command=on_apply, cursor="hand2").pack(
+        side=tk.LEFT, padx=5, pady=10
+    )
+    ttk.Button(
+        btn_container, text="Cancel", command=input_dialog.destroy, cursor="hand2"
+    ).pack(side=tk.LEFT, padx=5, pady=10)
+
+    input_dialog.wait_window()
+    return result
 
 
 # ==============================================================================
@@ -595,10 +729,10 @@ def update_progress(
     """Update progress bar based on current progress.
 
     Args:
-        current: Current progress value
-        total: Total value for 100% completion
-        progress_var: Progress bar variable
-        root: Tkinter root window
+        current: Current progress value.
+        total: Total value for 100% completion.
+        progress_var: Progress bar variable.
+        root: Tkinter root window.
     """
     if total > 0:
         percentage = (current / total) * 100
@@ -614,9 +748,9 @@ def toggle_checkbox(
     """Toggle the checkbox state for the selected extension.
 
     Args:
-        event: Mouse click event
-        tree: Treeview widget containing extensions
-        extension_vars: Dictionary of extension BooleanVars
+        event: Mouse click event.
+        tree: Treeview widget containing extensions.
+        extension_vars: Dictionary of extension BooleanVars.
     """
     item_id = tree.identify_row(event.y)
     if not item_id:
@@ -647,17 +781,17 @@ def update_history(
     """Updates the history for source and destination comboboxes.
 
     Args:
-        src: Source path
-        dst: Destination path
-        operation_mode: StringVar indicating operation mode
-        source_entry: Source combobox widget
-        destination_entry: Destination combobox widget
-        merge_source_history: Merge mode source history list
-        merge_dest_history: Merge mode destination history list
-        split_source_history: Split mode source history list
-        split_dest_history: Split mode destination history list
-        patch_source_history: Patch mode source history list
-        patch_dest_history: Patch mode destination history list
+        src: Source path.
+        dst: Destination path.
+        operation_mode: StringVar indicating operation mode.
+        source_entry: Source combobox widget.
+        destination_entry: Destination combobox widget.
+        merge_source_history: Merge mode source history list.
+        merge_dest_history: Merge mode destination history list.
+        split_source_history: Split mode source history list.
+        split_dest_history: Split mode destination history list.
+        patch_source_history: Patch mode source history list.
+        patch_dest_history: Patch mode destination history list.
     """
     mode = operation_mode.get()
     if mode == "split":
@@ -810,7 +944,7 @@ def run_gui() -> None:
     filter_rules = config.get("filters", [])
 
     def select_source() -> None:
-        """Open file dialog for source selection based on current mode."""
+        """Opens file dialog for source selection based on current mode."""
         mode = operation_mode.get()
         if mode == "patch":
             selected = select_file(
@@ -829,7 +963,7 @@ def run_gui() -> None:
             source_var.set(selected)
 
     def select_destination() -> None:
-        """Open file dialog for destination selection based on current mode."""
+        """Opens file dialog for destination selection based on current mode."""
         mode = operation_mode.get()
         if mode == "split" or mode == "patch":
             selected = select_directory(
@@ -844,66 +978,11 @@ def run_gui() -> None:
             dest_var.set(selected)
 
     def show_options() -> None:
-        """Open a dialog to select file extensions."""
+        """Opens a dialog to select file extensions and filters."""
         dialog = tk.Toplevel(root)
         dialog.title("Options")
         dialog.geometry("350x400")
         dialog.minsize(300, 350)
-
-        def create_rule_input_dialog(
-            title: str, prompt_text: str, initial_value: str = ""
-        ) -> Optional[str]:
-            """Create a dialog to get a filter rule from the user."""
-            entry_var = tk.StringVar(value=initial_value)
-            result = None
-
-            def on_apply():
-                nonlocal result
-                result = entry_var.get().strip()
-                if result:
-                    input_dialog.destroy()
-
-            input_dialog = tk.Toplevel(dialog)
-            input_dialog.transient(dialog)
-            input_dialog.grab_set()
-            input_dialog.title(title)
-            input_dialog.minsize(320, 130)
-
-            # Center dialog relative to parent
-            dialog.update_idletasks()
-            x = dialog.winfo_x() + (dialog.winfo_width() // 2) - (300 // 2)
-            y = dialog.winfo_y() + (dialog.winfo_height() // 2) - (150 // 2)
-            input_dialog.geometry(f"300x150+{x}+{y}")
-
-            content_frame = ttk.Frame(input_dialog, padding=10)
-            content_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
-
-            ttk.Label(content_frame, text=prompt_text).pack(anchor=tk.W, pady=(0, 5))
-
-            entry = ttk.Entry(content_frame, textvariable=entry_var)
-            entry.pack(fill=tk.X)
-            entry.focus_set()
-            entry.select_range(0, "end")
-            entry.bind("<Return>", lambda e: on_apply())
-
-            button_frame = ttk.Frame(input_dialog, padding=10)
-            button_frame.pack(side=tk.BOTTOM, fill=tk.X)
-
-            btn_container = ttk.Frame(button_frame)
-            btn_container.pack(anchor=tk.CENTER)
-
-            ttk.Button(
-                btn_container, text="Apply", command=on_apply, cursor="hand2"
-            ).pack(side=tk.LEFT, padx=5, pady=10)
-            ttk.Button(
-                btn_container,
-                text="Cancel",
-                command=input_dialog.destroy,
-                cursor="hand2",
-            ).pack(side=tk.LEFT, padx=5, pady=10)
-
-            input_dialog.wait_window()
-            return result
 
         notebook = ttk.Notebook(dialog)
         notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
@@ -968,8 +1047,8 @@ def run_gui() -> None:
         filter_tree.bind("<Button-1>", toggle_filter)
 
         def insert_filter():
-            rule = create_rule_input_dialog(
-                "Insert Filter", "Enter filter rule (e.g., node_modules):"
+            rule = _create_rule_input_dialog(
+                dialog, "Insert Filter", "Enter filter rule (e.g., node_modules):"
             )
             if rule:
                 filter_tree.insert("", "end", values=(GUI_CHECKED_CHAR, rule))
@@ -979,8 +1058,8 @@ def run_gui() -> None:
             if not selected:
                 return
             item = filter_tree.item(selected[0])
-            new_rule = create_rule_input_dialog(
-                "Edit Filter", "Edit filter rule:", item["values"][1]
+            new_rule = _create_rule_input_dialog(
+                dialog, "Edit Filter", "Edit filter rule:", item["values"][1]
             )
             if new_rule:
                 filter_tree.item(selected[0], values=(item["values"][0], new_rule))
@@ -1028,7 +1107,7 @@ def run_gui() -> None:
         ).pack(pady=(10, 20))
 
     def run_operation() -> None:
-        """Execute merge or split operation based on current mode."""
+        """Executes merge, split, or patch operation based on current mode."""
         src = source_var.get()
         dst = dest_var.get()
         mode = operation_mode.get()
@@ -1161,7 +1240,7 @@ def run_gui() -> None:
         progress_var.set(0)
 
     def toggle_operation_mode() -> None:
-        """Update UI labels when operation mode changes."""
+        """Updates UI labels when operation mode changes."""
         nonlocal last_mode
         mode = operation_mode.get()
 
@@ -1308,7 +1387,7 @@ def run_gui() -> None:
     execute_button.pack(side=tk.LEFT, padx=5)
 
     def on_closing() -> None:
-        """Save configuration and close the application."""
+        """Saves configuration and closes the application."""
         config["geometry"] = root.geometry()
         config["extensions"] = {ext: var.get() for ext, var in extension_vars.items()}
         config["overwrite_mode"] = overwrite_mode.get()
