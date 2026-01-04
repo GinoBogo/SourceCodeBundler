@@ -351,7 +351,7 @@ def merge_source_code(
     extensions: Optional[List[str]] = None,
     filters: Optional[List[dict]] = None,
     progress_callback: Optional[Callable] = None,
-) -> None:
+) -> int:
     """Recursively scans a directory and combines source files.
 
     Args:
@@ -360,6 +360,9 @@ def merge_source_code(
         extensions: List of file extensions to include.
         filters: List of filter rules to exclude files/directories.
         progress_callback: Optional callback for progress updates (current, total).
+
+    Returns:
+        int: Estimated number of tokens for the bundled content.
     """
     if extensions is None:
         extensions = DEFAULT_EXTENSIONS
@@ -418,15 +421,20 @@ def merge_source_code(
     bundle_suffix = output_path.suffix.lower()
     bundle_comment_char = COMMENT_SYNTAX.get(bundle_suffix, "#")
     is_css_bundle = bundle_suffix == ".css"
+    total_chars = 0
 
     with output_path.open("w", encoding="utf-8", newline="") as outfile:
         if total_files > 0:
             # Write File Index
             def write_index_line(text: str):
+                nonlocal total_chars
+                line = ""
                 if is_css_bundle:
-                    outfile.write(f"{bundle_comment_char} {text} */\n")
+                    line = f"{bundle_comment_char} {text} */\n"
                 else:
-                    outfile.write(f"{bundle_comment_char} {text}\n")
+                    line = f"{bundle_comment_char} {text}\n"
+                outfile.write(line)
+                total_chars += len(line)
 
             write_index_line(START_FILE_INDEX)
             write_index_line(f"Total Files: {total_files}")
@@ -443,6 +451,7 @@ def merge_source_code(
                     )
             write_index_line(END_FILE_INDEX)
             outfile.write("\n")
+            total_chars += 1
 
         for index, (file_path, rel_path_display) in enumerate(file_entries, 1):
             # Initialize variables
@@ -451,7 +460,9 @@ def merge_source_code(
 
             try:
                 # Write Start
-                outfile.write(f"{markers['start']}\n")
+                s = f"{markers['start']}\n"
+                outfile.write(s)
+                total_chars += len(s)
 
                 # Write Content (from cache)
                 content, _, _, error = content_cache[file_path]
@@ -459,11 +470,15 @@ def merge_source_code(
                     raise error
 
                 outfile.write(content)
+                total_chars += len(content)
                 if content and not content.endswith(("\n", "\r")):
                     outfile.write("\n")
+                    total_chars += 1
 
                 # Write End
-                outfile.write(f"{markers['end']}\n\n")
+                s = f"{markers['end']}\n\n"
+                outfile.write(s)
+                total_chars += len(s)
 
             except Exception as e:
                 error_msg = (
@@ -471,12 +486,14 @@ def merge_source_code(
                     if isinstance(e, UnicodeDecodeError)
                     else str(e)
                 )
-                outfile.write(
-                    f"{markers['err_start']}\n{markers['err_msg_prefix']} {error_msg}{markers['err_msg_suffix']}\n{markers['err_end']}\n\n"
-                )
+                s = f"{markers['err_start']}\n{markers['err_msg_prefix']} {error_msg}{markers['err_msg_suffix']}\n{markers['err_end']}\n\n"
+                outfile.write(s)
+                total_chars += len(s)
 
             if progress_callback:
                 progress_callback(index, total_files)
+
+    return total_chars // 4
 
 
 def split_source_code(
@@ -876,8 +893,8 @@ def run_cli() -> None:
         source, output = args.merge
         print(f"Merging files from '{source}' to '{output}'...")
         try:
-            merge_source_code(source, output, extensions=args.extensions)
-            print("Merge completed successfully.")
+            tokens = merge_source_code(source, output, extensions=args.extensions)
+            print(f"Merge completed successfully. Estimated tokens: {tokens}")
         except Exception as e:
             print(f"Error during merge: {e}")
     elif args.split:
@@ -1221,7 +1238,7 @@ def run_gui() -> None:
                 active_extensions = [
                     ext for ext, var in extension_vars.items() if var.get()
                 ]
-                merge_source_code(
+                tokens = merge_source_code(
                     src,
                     dst,
                     extensions=active_extensions,
@@ -1245,7 +1262,7 @@ def run_gui() -> None:
                 )
                 messagebox.showinfo(
                     "Operation Complete",
-                    f"Successfully bundled source code into:\n{dst}",
+                    f"Successfully bundled source code into:\n{dst}\n\nEstimated Tokens: {tokens}",
                 )
         except Exception as error:
             messagebox.showerror("Operation Failed", str(error))

@@ -12,12 +12,15 @@ A versatile Python utility designed to merge multiple source code files into a s
 - **CLI Support**: Command-line interface for batch processing and automation.
 - **Configurable**: Select specific file extensions to include/exclude via the Options menu.
 - **Safety**: Checks for path traversal attempts during the split process.
+- **Token Estimation**: Provides an estimated token count for the bundled content to help size context for LLMs.
 
 ![figure_01.png](docs/images/figure_01.png)
 
 ![figure_02.png](docs/images/figure_02.png)
 
 ![figure_03.png](docs/images/figure_03.png)
+
+![figure_04.png](docs/images/figure_04.png)
 
 ## Requirements
 
@@ -49,7 +52,7 @@ python source_code_bundler.py
 2. Click **Browse** next to "Source Directory" to choose the folder containing your source code.
 3. Click **Save As** next to "Output File" to choose where to save the bundled text file.
 4. (Optional) Click **Options** to filter specific file extensions.
-5. Click **Execute**.
+5. Click **Execute**. The application will display the estimated token count upon completion.
 
 ### Splitting Files (Unbundle)
 
