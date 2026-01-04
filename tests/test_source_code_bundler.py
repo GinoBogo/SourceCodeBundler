@@ -219,6 +219,28 @@ class TestSourceCodeBundler(unittest.TestCase):
         self.assertIn(expected_start, content)
         self.assertIn(expected_end, content)
 
+    def test_bundle_index_formatting(self):
+        """Test that the file index uses the correct comment syntax for the output file type."""
+        self._create_test_file("test.cpp", "int main() {}")
+
+        # Test CPP bundle (should use //)
+        cpp_bundle = os.path.join(self.test_dir, "bundle.cpp")
+        source_code_bundler.merge_source_code(
+            self.src_dir, cpp_bundle, extensions=[".cpp"]
+        )
+        with open(cpp_bundle, "r", encoding="utf-8") as f:
+            content = f.read()
+        self.assertIn(f"// {source_code_bundler.START_FILE_INDEX}", content)
+
+        # Test CSS bundle (should use /* ... */)
+        css_bundle = os.path.join(self.test_dir, "bundle.css")
+        source_code_bundler.merge_source_code(
+            self.src_dir, css_bundle, extensions=[".cpp"]
+        )
+        with open(css_bundle, "r", encoding="utf-8") as f:
+            content = f.read()
+        self.assertIn(f"/* {source_code_bundler.START_FILE_INDEX} */", content)
+
     def test_css_comment_closing_correctness(self):
         """Test that CSS markers are proper CSS comments (opened and closed)."""
         self._create_test_file("test.css", "body { color: red; }")

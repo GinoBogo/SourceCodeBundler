@@ -14,6 +14,7 @@ This directory contains unit tests for the Source Code Bundler application. The 
 
 ### Comment Syntax and Formatting Tests
 - **test_css_marker_formatting**: Test CSS files have correctly formatted comment markers with closing tags.
+- **test_bundle_index_formatting**: Test that the file index uses the correct comment syntax for the output file type.
 - **test_css_comment_closing_correctness**: Test that CSS markers are proper CSS comments (opened and closed).
 - **test_mixed_file_types_comment_syntax**: Test different file types get correct comment syntax.
 - **test_regex_pattern_matching_for_css**: Test regex patterns correctly match CSS markers with comment delimiters.

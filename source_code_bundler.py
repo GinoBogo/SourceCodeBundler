@@ -55,6 +55,10 @@ COMMENT_SYNTAX = {
 
 SEPARATOR_MARKER = "[[ SCB ]]"
 
+# Index Constants
+START_FILE_INDEX  = f"{SEPARATOR_MARKER} FILE INDEX START"
+END_FILE_INDEX    = f"{SEPARATOR_MARKER} FILE INDEX END"
+
 # Merge Constants
 START_FILE_MERGE  = f"{SEPARATOR_MARKER} START FILE:"
 END_FILE_MERGE    = f"{SEPARATOR_MARKER} END FILE:"
@@ -259,23 +263,35 @@ def merge_source_code(
         except Exception as e:
             content_cache[file_path] = (None, None, 0, e)
 
+    # Determine bundle comment syntax
+    bundle_suffix = output_path.suffix.lower()
+    bundle_comment_char = COMMENT_SYNTAX.get(bundle_suffix, "#")
+    is_css_bundle = bundle_suffix == ".css"
+
     with output_path.open("w", encoding="utf-8", newline="") as outfile:
         if total_files > 0:
             # Write File Index
-            outfile.write(f"# {SEPARATOR_MARKER} FILE INDEX START\n")
-            outfile.write(f"# Total Files: {total_files}\n")
-            outfile.write("# \n")
+            def write_index_line(text: str):
+                if is_css_bundle:
+                    outfile.write(f"{bundle_comment_char} {text} */\n")
+                else:
+                    outfile.write(f"{bundle_comment_char} {text}\n")
+
+            write_index_line(START_FILE_INDEX)
+            write_index_line(f"Total Files: {total_files}")
+            write_index_line("")
             for file_path, display_path in file_entries:
                 content, size_str, lines, error = content_cache[file_path]
                 if content is not None:
-                    outfile.write(
-                        f"# {display_path.ljust(max_path_len)} | SIZE: {size_str:>{max_size_len}}kb | LINES: {lines:>{max_lines_len}}\n"
+                    write_index_line(
+                        f"{display_path.ljust(max_path_len)} | SIZE: {size_str:>{max_size_len}}kb | LINES: {lines:>{max_lines_len}}"
                     )
                 else:
-                    outfile.write(
-                        f"# {display_path.ljust(max_path_len)} [Error reading file]\n"
+                    write_index_line(
+                        f"{display_path.ljust(max_path_len)} [Error reading file]"
                     )
-            outfile.write(f"# {SEPARATOR_MARKER} FILE INDEX END\n\n")
+            write_index_line(END_FILE_INDEX)
+            outfile.write("\n")
 
         for index, (file_path, rel_path_display) in enumerate(file_entries, 1):
             # Initialize variables
