@@ -33,6 +33,7 @@ CONFIG_FILE        = "source_code_bundler.json"
 GUI_CHECKED_CHAR   = "✓"
 GUI_UNCHECKED_CHAR = "☐"
 FILE_ENCODINGS     = ["utf-8", "cp1252", "latin-1"]
+BUTTON_WIDTH       = 10
 
 DEFAULT_EXTENSIONS = [
     ".py",
@@ -705,11 +706,19 @@ def _create_rule_input_dialog(
     btn_container = ttk.Frame(button_frame)
     btn_container.pack(anchor=tk.CENTER)
 
-    ttk.Button(btn_container, text="Apply", command=on_apply, cursor="hand2").pack(
-        side=tk.LEFT, padx=5, pady=10
-    )
     ttk.Button(
-        btn_container, text="Cancel", command=input_dialog.destroy, cursor="hand2"
+        btn_container,
+        text="Apply",
+        command=on_apply,
+        width=BUTTON_WIDTH,
+        cursor="hand2",
+    ).pack(side=tk.LEFT, padx=5, pady=10)
+    ttk.Button(
+        btn_container,
+        text="Cancel",
+        command=input_dialog.destroy,
+        width=BUTTON_WIDTH,
+        cursor="hand2",
     ).pack(side=tk.LEFT, padx=5, pady=10)
 
     input_dialog.wait_window()
@@ -1103,7 +1112,11 @@ def run_gui() -> None:
         dialog.protocol("WM_DELETE_WINDOW", close_options)
 
         ttk.Button(
-            dialog, text="Close", command=close_options, width=10, cursor="hand2"
+            dialog,
+            text="Close",
+            command=close_options,
+            width=BUTTON_WIDTH,
+            cursor="hand2",
         ).pack(pady=(10, 20))
 
     def run_operation() -> None:
@@ -1296,7 +1309,7 @@ def run_gui() -> None:
         input_frame,
         text="Browse",
         command=select_source,
-        width=10,
+        width=BUTTON_WIDTH,
         cursor="hand2",
     )
     source_button.grid(row=0, column=2, padx=5, pady=5)
@@ -1315,7 +1328,7 @@ def run_gui() -> None:
         input_frame,
         text="Save As",
         command=select_destination,
-        width=10,
+        width=BUTTON_WIDTH,
         cursor="hand2",
     )
     destination_button.grid(row=1, column=2, padx=5, pady=5)
@@ -1372,7 +1385,7 @@ def run_gui() -> None:
         button_frame,
         text="Options",
         command=show_options,
-        width=10,
+        width=BUTTON_WIDTH,
         cursor="hand2",
     )
     options_button.pack(side=tk.LEFT, padx=5)
@@ -1381,7 +1394,7 @@ def run_gui() -> None:
         button_frame,
         text="Execute",
         command=run_operation,
-        width=10,
+        width=BUTTON_WIDTH,
         cursor="hand2",
     )
     execute_button.pack(side=tk.LEFT, padx=5)
