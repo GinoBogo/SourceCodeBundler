@@ -15,6 +15,10 @@ A versatile Python utility designed to merge multiple source code files into a s
 
 ![figure_01.png](docs/images/figure_01.png)
 
+![figure_02.png](docs/images/figure_02.png)
+
+![figure_03.png](docs/images/figure_03.png)
+
 ## Requirements
 
 - Python 3.x
