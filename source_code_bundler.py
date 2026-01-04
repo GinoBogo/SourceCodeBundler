@@ -945,6 +945,7 @@ def run_gui() -> None:
         style.theme_use("vista")
 
     style.configure("TNotebook.Tab", width=15, anchor="center")
+    style.configure("Horizontal.TProgressbar", background="#4caf50")
 
     filetypes_list = [(f"{ext} files", f"*{ext}") for ext in DEFAULT_EXTENSIONS]
     filetypes_list.extend([("Text files", "*.txt"), ("All files", "*.*")])
