@@ -31,6 +31,7 @@ from typing import Callable, List, Optional
 CONFIG_FILE        = "source_code_bundler.json"
 GUI_CHECKED_CHAR   = "✓"
 GUI_UNCHECKED_CHAR = "☐"
+FILE_ENCODINGS     = ["utf-8", "cp1252", "latin-1"]
 
 DEFAULT_EXTENSIONS = [
     ".py",
@@ -40,8 +41,6 @@ DEFAULT_EXTENSIONS = [
     ".cpp",
     ".hpp",
     ".css"]
-
-ENCODINGS = ["utf-8", "cp1252", "latin-1"]
 
 COMMENT_SYNTAX = {
     ".py": "#",
@@ -141,7 +140,7 @@ def read_file_content(file_path: Path) -> str:
     Raises:
         UnicodeDecodeError: If file cannot be decoded with supported encodings
     """
-    for encoding in ENCODINGS:
+    for encoding in FILE_ENCODINGS:
         try:
             with file_path.open("r", encoding=encoding, newline="") as f:
                 content = f.read()
@@ -389,7 +388,13 @@ def split_source_code(
                     stem = target_path.stem
                     suffix = target_path.suffix
                     counter = 1
+                    max_duplicates = 10000  # Safety limit
+
                     while target_path.exists():
+                        if counter > max_duplicates:
+                            raise RuntimeError(
+                                f"Too many duplicate files for {stem}{suffix}"
+                            )
                         target_path = target_path.with_name(f"{stem}_{counter}{suffix}")
                         counter += 1
                     print(
@@ -420,16 +425,23 @@ def split_source_code(
         # Check ERROR START
         error_start_match = START_ERROR_SPLIT.match(stripped)
         if error_start_match:
-            # Skip error block
-            while current_line < len(lines):
+            error_line_count = 0
+            max_error_lines = 1000  # Safety limit
+
+            while current_line < len(lines) and error_line_count < max_error_lines:
                 line_stripped = lines[current_line].strip()
                 if END_ERROR_SPLIT.match(line_stripped):
-                    # Skip ERROR END
-                    current_line += 1
+                    current_line += 1  # Skip END line
                     while current_line < len(lines) and not lines[current_line].strip():
-                        current_line += 1
+                        current_line += 1  # Skip empty lines
                     break
                 current_line += 1
+                error_line_count += 1
+            else:
+                print(
+                    "Warning: Error block exceeded max lines, skipping remaining content"
+                )
+
             continue
 
         # Skip error messages
