@@ -739,6 +739,7 @@ def run_gui() -> None:
     source_var = tk.StringVar()
     dest_var = tk.StringVar()
     operation_mode = tk.StringVar(value="merge")
+    last_mode = "merge"
     overwrite_mode = tk.BooleanVar(value=config.get("overwrite_mode", False))
     progress_var = tk.DoubleVar()
     extensions_config = config.get("extensions", {})
@@ -951,7 +952,19 @@ def run_gui() -> None:
 
     def toggle_operation_mode() -> None:
         """Update UI labels when operation mode changes."""
+        nonlocal last_mode
         mode = operation_mode.get()
+
+        if (last_mode == "merge" and mode == "split") or (
+            last_mode == "split" and mode == "merge"
+        ):
+            src_val = source_var.get()
+            dst_val = dest_var.get()
+            source_var.set(dst_val)
+            dest_var.set(src_val)
+
+        last_mode = mode
+
         if mode == "split":
             source_label.config(text="Source File:")
             destination_label.config(text="Output Directory:")
