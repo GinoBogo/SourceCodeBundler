@@ -41,6 +41,8 @@ DEFAULT_EXTENSIONS = [
     ".hpp",
     ".css"]
 
+ENCODINGS = ["utf-8", "cp1252", "latin-1"]
+
 COMMENT_SYNTAX = {
     ".py": "#",
     ".rs": "//",
@@ -107,6 +109,26 @@ def save_config(config: dict) -> None:
 # File I/O Helpers
 
 
+def _is_binary_content(content: str) -> bool:
+    """Checks if content appears to be binary based on control characters."""
+    if not content:
+        return False
+
+    # Sample first 8KB
+    sample = content[:8192]
+
+    # Count non-printable characters (excluding common whitespace)
+    # \t (9), \n (10), \r (13), \f (12) are common in text
+    text_controls = {9, 10, 12, 13}
+
+    non_printable_count = sum(
+        1 for c in sample if not c.isprintable() and ord(c) not in text_controls
+    )
+
+    # If more than 10% non-printable, consider it binary
+    return (non_printable_count / len(sample)) > 0.10
+
+
 def read_file_content(file_path: Path) -> str:
     """Attempts to read file content using multiple encodings.
 
@@ -118,13 +140,12 @@ def read_file_content(file_path: Path) -> str:
 
     Raises:
         UnicodeDecodeError: If file cannot be decoded with supported encodings
-        ValueError: If binary content is detected
     """
-    for encoding in ["utf-8", "cp1252", "latin-1"]:
+    for encoding in ENCODINGS:
         try:
             with file_path.open("r", encoding=encoding, newline="") as f:
                 content = f.read()
-                if "\0" in content:
+                if _is_binary_content(content):
                     raise ValueError("Binary content detected")
                 return content
         except (UnicodeDecodeError, ValueError):

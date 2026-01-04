@@ -24,6 +24,7 @@ This directory contains unit tests for the Source Code Bundler application. The 
 
 ### Error Handling and Edge Cases Tests
 - **test_binary_file_handling**: Test binary files result in error markers in bundle.
+- **test_binary_detection_thresholds**: Test binary detection heuristic thresholds (10% non-printable).
 - **test_encoding_fallback**: Test that files with non-UTF-8 encoding (e.g. Latin-1) are handled.
 - **test_error_markers_defined_before_exception_robust**: Test error markers are defined before any exception can occur.
 - **test_error_handling_in_split_function**: Test error handling when splitting corrupted bundle.

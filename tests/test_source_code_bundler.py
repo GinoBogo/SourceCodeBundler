@@ -404,6 +404,38 @@ class TestSourceCodeBundler(unittest.TestCase):
         self.assertIn(source_code_bundler.START_ERROR_MERGE, content)
         self.assertIn("Cannot read file", content)
 
+    def test_binary_detection_thresholds(self):
+        """Test binary detection heuristic thresholds (10% non-printable)."""
+        # Case 1: Just below threshold (10% non-printable) -> Should be treated as text
+        # 90 printable 'a', 10 non-printable '\x00'
+        content_text = "a" * 90 + "\x00" * 10
+        path_text = os.path.join(self.src_dir, "threshold_text.txt")
+        with open(path_text, "wb") as f:
+            f.write(content_text.encode("latin-1"))
+
+        # Case 2: Just above threshold (11% non-printable) -> Should be treated as binary
+        # 89 printable 'a', 11 non-printable '\x00'
+        content_bin = "a" * 89 + "\x00" * 11
+        path_bin = os.path.join(self.src_dir, "threshold_bin.txt")
+        with open(path_bin, "wb") as f:
+            f.write(content_bin.encode("latin-1"))
+
+        source_code_bundler.merge_source_code(
+            self.src_dir, self.bundle_file, extensions=[".txt"]
+        )
+
+        with open(self.bundle_file, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        # Verify text file is included as content
+        self.assertIn(
+            f"{source_code_bundler.START_FILE_MERGE} src/threshold_text.txt", content
+        )
+        # Verify binary file is included as error
+        self.assertIn(
+            f"{source_code_bundler.START_ERROR_MERGE} src/threshold_bin.txt", content
+        )
+
     def test_encoding_fallback(self):
         """Test that files with non-UTF-8 encoding (e.g. Latin-1) are handled."""
         # Create a file with Latin-1 content that is invalid in UTF-8
