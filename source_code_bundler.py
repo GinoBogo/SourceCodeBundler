@@ -12,6 +12,7 @@ Version: 1.1
 """
 
 import argparse
+import fnmatch
 import json
 import os
 import re
@@ -128,6 +129,26 @@ def _is_binary_content(content: str) -> bool:
     return (non_printable_count / len(sample)) > 0.10
 
 
+def _matches_filter(path: Path, filters: Optional[List[dict]]) -> bool:
+    """Checks if path matches any active filter rule."""
+    if not filters:
+        return False
+
+    for f in filters:
+        if not f.get("active", True):
+            continue
+        rule = f.get("rule", "").strip()
+        if not rule:
+            continue
+
+        # Check if rule matches the filename or any part of the path
+        if fnmatch.fnmatch(path.name, rule) or any(
+            fnmatch.fnmatch(part, rule) for part in path.parts
+        ):
+            return True
+    return False
+
+
 def read_file_content(file_path: Path) -> str:
     """Attempts to read file content using multiple encodings.
 
@@ -162,6 +183,7 @@ def merge_source_code(
     source_dir: str,
     output_file: str,
     extensions: Optional[List[str]] = None,
+    filters: Optional[List[dict]] = None,
     progress_callback: Optional[Callable] = None,
 ) -> None:
     """
@@ -172,6 +194,7 @@ def merge_source_code(
         source_dir: Directory to scan for source files
         output_file: Path to the output combined file
         extensions: List of file extensions to include (defaults to DEFAULT_EXTENSIONS)
+        filters: List of filter rules to exclude files/directories
         progress_callback: Optional callback for progress updates (current, total)
     """
     if extensions is None:
@@ -186,6 +209,9 @@ def merge_source_code(
         if file_path.is_file() and not any(
             part.startswith(".") for part in file_path.parts
         ):
+            if _matches_filter(file_path, filters):
+                continue
+
             if file_path.suffix.lower() in extensions:
                 matching_files.append(file_path)
 
@@ -309,6 +335,7 @@ def split_source_code(
     source_file: str,
     output_dir: str,
     overwrite: bool = False,
+    filters: Optional[List[dict]] = None,
     progress_callback: Optional[Callable] = None,
 ) -> None:
     """
@@ -319,6 +346,7 @@ def split_source_code(
         source_file: Combined source file to split
         output_dir: Directory where individual files will be created
         overwrite: If True, overwrite existing files instead of renaming
+        filters: List of filter rules to exclude files/directories
         progress_callback: Optional callback for progress updates (current, total)
     """
     output_path = Path(output_dir)
@@ -381,6 +409,13 @@ def split_source_code(
                     continue
 
                 target_path = Path(full_path)
+
+                if _matches_filter(target_path, filters):
+                    print(f"Skipping filtered path: {original_path_str}")
+                    current_file = None
+                    current_line += 1
+                    continue
+
                 target_path.parent.mkdir(parents=True, exist_ok=True)
 
                 # Avoid overwriting existing files by appending a counter
@@ -1011,6 +1046,7 @@ def run_gui() -> None:
                     src,
                     dst,
                     overwrite=overwrite_mode.get(),
+                    filters=filter_rules,
                     progress_callback=lambda c, t: update_progress(
                         c, t, progress_var, root
                     ),
@@ -1081,6 +1117,7 @@ def run_gui() -> None:
                     src,
                     dst,
                     extensions=active_extensions,
+                    filters=filter_rules,
                     progress_callback=lambda c, t: update_progress(
                         c, t, progress_var, root
                     ),

@@ -107,6 +107,60 @@ class TestSourceCodeBundler(unittest.TestCase):
         self.assertNotIn("style.css", content)
         self.assertNotIn("readme.md", content)
 
+    def test_filter_rules_merge(self):
+        """Test that filter rules exclude files during merge."""
+        self._create_test_file("keep.py", "print('keep')")
+        self._create_test_file("ignore.py", "print('ignore')")
+        self._create_test_file("node_modules/lib.py", "print('lib')")
+        self._create_test_file("logs/app.log", "log data")
+        self._create_test_file("inactive.py", "print('inactive rule')")
+
+        filters = [
+            {"rule": "ignore.py", "active": True},
+            {"rule": "node_modules", "active": True},
+            {"rule": "*.log", "active": True},
+            {"rule": "inactive.py", "active": False},
+        ]
+
+        source_code_bundler.merge_source_code(
+            self.src_dir,
+            self.bundle_file,
+            extensions=[".py", ".log"],
+            filters=filters,
+        )
+
+        with open(self.bundle_file, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        self.assertIn("keep.py", content)
+        self.assertNotIn("ignore.py", content)
+        self.assertNotIn("node_modules/lib.py", content)
+        self.assertNotIn("logs/app.log", content)
+        self.assertIn("inactive.py", content)
+
+    def test_filter_rules_split(self):
+        """Test that filter rules exclude files during split."""
+        content = (
+            f"// {source_code_bundler.START_FILE_MERGE} keep.py\n"
+            "print('keep')\n"
+            f"// {source_code_bundler.END_FILE_MERGE} keep.py\n\n"
+            f"// {source_code_bundler.START_FILE_MERGE} ignore.py\n"
+            "print('ignore')\n"
+            f"// {source_code_bundler.END_FILE_MERGE} ignore.py\n\n"
+        )
+
+        with open(self.bundle_file, "w", encoding="utf-8") as f:
+            f.write(content)
+
+        filters = [{"rule": "ignore.py", "active": True}]
+
+        source_code_bundler.split_source_code(
+            self.bundle_file, self.output_dir, filters=filters
+        )
+
+        self.assertTrue(os.path.exists(os.path.join(self.output_dir, "keep.py")))
+        self.assertFalse(os.path.exists(os.path.join(self.output_dir, "ignore.py")))
+
     def test_file_extension_case_insensitivity(self):
         """Test case-insensitive file extension matching."""
         test_files = {
