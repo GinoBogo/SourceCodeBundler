@@ -69,6 +69,14 @@ END_ERROR_MERGE   = f"{SEPARATOR_MARKER} END ERROR:"
 
 # Split Regex Patterns
 def _create_split_pattern(marker):
+    """Creates a regex pattern for splitting content based on a marker.
+
+    Args:
+        marker: The marker string to look for.
+
+    Returns:
+        re.Pattern: Compiled regex pattern.
+    """
     return re.compile(r"^(\S+)\s+" + re.escape(marker) + r"\s+(.+?)(?:\s*\*/)?$")
 
 START_FILE_SPLIT  = _create_split_pattern(START_FILE_MERGE)
@@ -427,6 +435,7 @@ def merge_source_code(
         if total_files > 0:
             # Write File Index
             def write_index_line(text: str):
+                """Writes a line to the index section with appropriate comments."""
                 nonlocal total_chars
                 line = ""
                 if is_css_bundle:
@@ -689,6 +698,7 @@ def _create_rule_input_dialog(
     result = None
 
     def on_apply():
+        """Handles the apply button click event."""
         nonlocal result
         result = entry_var.get().strip()
         if result:
@@ -1062,6 +1072,7 @@ def run_gui() -> None:
         filter_tree.config(yscrollcommand=scrollbar.set)
 
         def toggle_filter(event):
+            """Toggles the active state of a filter rule on click."""
             item_id = filter_tree.identify_row(event.y)
             if not item_id:
                 return
@@ -1074,6 +1085,7 @@ def run_gui() -> None:
         filter_tree.bind("<Button-1>", toggle_filter)
 
         def insert_filter():
+            """Opens dialog to add a new filter rule."""
             rule = _create_rule_input_dialog(
                 dialog, "Insert Filter", "Enter filter rule (e.g., node_modules):"
             )
@@ -1081,6 +1093,7 @@ def run_gui() -> None:
                 filter_tree.insert("", "end", values=(GUI_CHECKED_CHAR, rule))
 
         def edit_filter():
+            """Opens dialog to edit the selected filter rule."""
             selected = filter_tree.selection()
             if not selected:
                 return
@@ -1092,6 +1105,7 @@ def run_gui() -> None:
                 filter_tree.item(selected[0], values=(item["values"][0], new_rule))
 
         def remove_filter():
+            """Removes the selected filter rule."""
             selected = filter_tree.selection()
             if selected:
                 filter_tree.delete(selected[0])
@@ -1102,6 +1116,7 @@ def run_gui() -> None:
         context_menu.add_command(label="Edit", command=edit_filter)
 
         def show_context_menu(event):
+            """Displays the context menu for filter rules."""
             item = filter_tree.identify_row(event.y)
             if item:
                 filter_tree.selection_set(item)
@@ -1120,6 +1135,7 @@ def run_gui() -> None:
             filter_tree.insert("", "end", values=(char, f["rule"]))
 
         def close_options():
+            """Saves filter rules and closes the options dialog."""
             filter_rules.clear()
             for child in filter_tree.get_children():
                 vals = filter_tree.item(child, "values")
