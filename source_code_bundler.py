@@ -651,29 +651,31 @@ class GMessageBox:
         # Use text characters for shapes to ensure antialiasing on all platforms
         # Circle: ● (U+25CF), Triangle: ▲ (U+25B2), Cross: ✕ (U+2715)
 
+        font_family = "Segoe UI" if os.name == "nt" else "Helvetica"
+
         if icon == "information":
             # Blue circle with 'i'
-            canvas.create_text(28, 30, text="●", fill="#0078D7", font=("Arial", 72))
+            canvas.create_text(28, 28, text="●", fill="#0078D7", font=(font_family, 72))
             canvas.create_text(
-                28, 36, text="i", fill="white", font=("Arial", 22, "bold")
+                28, 28, text="i", fill="white", font=(font_family, 22, "bold")
             )
         elif icon == "warning":
             # Yellow triangle with '!'
-            canvas.create_text(28, 30, text="▲", fill="#FFC107", font=("Arial", 64))
+            canvas.create_text(28, 28, text="▲", fill="#FFC107", font=(font_family, 64))
             canvas.create_text(
-                28, 38, text="!", fill="black", font=("Arial", 22, "bold")
+                28, 32, text="!", fill="black", font=(font_family, 22, "bold")
             )
         elif icon == "error":
             # Red circle with 'X'
-            canvas.create_text(28, 30, text="●", fill="#E81123", font=("Arial", 72))
+            canvas.create_text(28, 28, text="●", fill="#E81123", font=(font_family, 72))
             canvas.create_text(
-                28, 38, text="✕", fill="white", font=("Arial", 20, "bold")
+                28, 28, text="✕", fill="white", font=(font_family, 20, "bold")
             )
         elif icon == "question":
             # Blue circle with '?'
-            canvas.create_text(28, 30, text="●", fill="#0078D7", font=("Arial", 72))
+            canvas.create_text(28, 28, text="●", fill="#0078D7", font=(font_family, 72))
             canvas.create_text(
-                28, 36, text="?", fill="white", font=("Arial", 22, "bold")
+                28, 28, text="?", fill="white", font=(font_family, 22, "bold")
             )
 
     @staticmethod
@@ -689,7 +691,9 @@ class GMessageBox:
         dialog.resizable(False, False)
 
         # Use a consistent font
-        font_style = ("Segoe UI", 9) if os.name == "nt" else ("Helvetica", 10)
+        font_family = "Segoe UI" if os.name == "nt" else "Helvetica"
+        font_size = 9 if os.name == "nt" else 10
+        font_style = (font_family, font_size)
 
         main_frame = ttk.Frame(dialog, padding=20)
         main_frame.pack(fill=tk.BOTH, expand=True)
