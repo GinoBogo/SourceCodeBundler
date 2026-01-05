@@ -21,8 +21,8 @@ import subprocess
 import sys
 import tkinter as tk
 from pathlib import Path, PurePosixPath
-from tkinter import filedialog, messagebox, ttk
-from typing import Callable, List, Optional
+from tkinter import filedialog, ttk
+from typing import Any, Callable, List, Optional, cast
 
 
 # ==============================================================================
@@ -642,6 +642,157 @@ def apply_patch(
 # GUI Helper Functions
 
 
+class GMessageBox:
+    """Custom message box with consistent font sizing."""
+
+    @staticmethod
+    def _draw_icon(canvas: tk.Canvas, icon: str) -> None:
+        """Draws the specified icon onto the canvas."""
+        # Use text characters for shapes to ensure antialiasing on all platforms
+        # Circle: ● (U+25CF), Triangle: ▲ (U+25B2), Cross: ✕ (U+2715)
+
+        if icon == "information":
+            # Blue circle with 'i'
+            canvas.create_text(28, 30, text="●", fill="#0078D7", font=("Arial", 72))
+            canvas.create_text(
+                28, 36, text="i", fill="white", font=("Arial", 22, "bold")
+            )
+        elif icon == "warning":
+            # Yellow triangle with '!'
+            canvas.create_text(28, 30, text="▲", fill="#FFC107", font=("Arial", 64))
+            canvas.create_text(
+                28, 38, text="!", fill="black", font=("Arial", 22, "bold")
+            )
+        elif icon == "error":
+            # Red circle with 'X'
+            canvas.create_text(28, 30, text="●", fill="#E81123", font=("Arial", 72))
+            canvas.create_text(
+                28, 38, text="✕", fill="white", font=("Arial", 20, "bold")
+            )
+        elif icon == "question":
+            # Blue circle with '?'
+            canvas.create_text(28, 30, text="●", fill="#0078D7", font=("Arial", 72))
+            canvas.create_text(
+                28, 36, text="?", fill="white", font=("Arial", 22, "bold")
+            )
+
+    @staticmethod
+    def _create_dialog(
+        title: str, message: str, buttons: List[tuple], icon: Optional[str] = None
+    ) -> Any:
+        dialog = tk.Toplevel()
+        root = dialog.master
+        dialog.title(title)
+        if root:
+            dialog.transient(cast(tk.Wm, root))
+        dialog.grab_set()
+        dialog.resizable(False, False)
+
+        # Use a consistent font
+        font_style = ("Segoe UI", 9) if os.name == "nt" else ("Helvetica", 10)
+
+        main_frame = ttk.Frame(dialog, padding=20)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        content_frame = ttk.Frame(main_frame)
+        content_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 20))
+
+        if icon:
+            # Attempt to match the dialog background color
+            bg_color = ttk.Style().lookup("TFrame", "background")
+            if not bg_color:
+                bg_color = "#f0f0f0"
+
+            icon_canvas = tk.Canvas(
+                content_frame,
+                width=56,
+                height=56,
+                highlightthickness=0,
+                bg=bg_color,
+            )
+            icon_canvas.pack(side=tk.LEFT, anchor=tk.N, padx=(0, 15))
+
+            GMessageBox._draw_icon(icon_canvas, icon)
+
+        label = ttk.Label(
+            content_frame,
+            text=message,
+            font=font_style,
+            wraplength=350,
+            justify=tk.LEFT,
+        )
+        label.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        btn_frame = ttk.Frame(main_frame)
+        btn_frame.pack(fill=tk.X)
+
+        container = ttk.Frame(btn_frame)
+        container.pack(anchor=tk.CENTER)
+
+        result = None
+
+        def on_btn(value):
+            nonlocal result
+            result = value
+            dialog.destroy()
+
+        for text, value, default in buttons:
+            btn = ttk.Button(
+                container,
+                text=text,
+                command=lambda v=value: on_btn(v),
+                width=10,
+                cursor="hand2",
+            )
+            btn.pack(side=tk.LEFT, padx=5)
+            if default:
+                btn.focus_set()
+                dialog.bind("<Return>", lambda e, v=value: on_btn(v))
+
+        dialog.bind("<Escape>", lambda e: dialog.destroy())
+
+        # Center dialog
+        dialog.update_idletasks()
+        w = dialog.winfo_reqwidth()
+        h = dialog.winfo_reqheight()
+
+        if root:
+            rx = root.winfo_x()
+            ry = root.winfo_y()
+            rw = root.winfo_width()
+            rh = root.winfo_height()
+
+            x = rx + (rw - w) // 2
+            y = ry + (rh - h) // 2
+            dialog.geometry(f"+{x}+{y}")
+
+        dialog.wait_window()
+        return result
+
+    @staticmethod
+    def showinfo(title: str, message: str) -> None:
+        GMessageBox._create_dialog(
+            title, message, [("OK", None, True)], icon="information"
+        )
+
+    @staticmethod
+    def showwarning(title: str, message: str) -> None:
+        GMessageBox._create_dialog(title, message, [("OK", None, True)], icon="warning")
+
+    @staticmethod
+    def showerror(title: str, message: str) -> None:
+        GMessageBox._create_dialog(title, message, [("OK", None, True)], icon="error")
+
+    @staticmethod
+    def askyesno(title: str, message: str) -> Optional[bool]:
+        return GMessageBox._create_dialog(
+            title,
+            message,
+            [("Yes", True, True), ("No", False, False)],
+            icon="question",
+        )
+
+
 def select_directory(title: str = "Select Directory") -> str:
     """Opens a directory selection dialog.
 
@@ -1160,7 +1311,7 @@ def run_gui() -> None:
         mode = operation_mode.get()
 
         if not src or not dst:
-            messagebox.showwarning(
+            GMessageBox.showwarning(
                 "Missing Information",
                 "Please specify both source and destination paths.",
             )
@@ -1169,7 +1320,7 @@ def run_gui() -> None:
         # Validate paths
         src_path = Path(src)
         if not src_path.exists():
-            messagebox.showerror(
+            GMessageBox.showerror(
                 "Invalid Source", f"Source path does not exist:\n{src}"
             )
             return
@@ -1179,7 +1330,7 @@ def run_gui() -> None:
         try:
             if mode == "split":
                 if not src_path.is_file():
-                    messagebox.showerror(
+                    GMessageBox.showerror(
                         "Invalid Source", "Source must be a file in split mode."
                     )
                     return
@@ -1206,12 +1357,12 @@ def run_gui() -> None:
                     patch_source_history,
                     patch_dest_history,
                 )
-                messagebox.showinfo(
+                GMessageBox.showinfo(
                     "Operation Complete", f"Successfully split source code into:\n{dst}"
                 )
             elif mode == "patch":
                 if not src_path.is_file():
-                    messagebox.showerror(
+                    GMessageBox.showerror(
                         "Invalid Source", "Source must be a patch file."
                     )
                     return
@@ -1236,17 +1387,19 @@ def run_gui() -> None:
                     patch_source_history,
                     patch_dest_history,
                 )
-                messagebox.showinfo("Operation Complete", "Patch applied successfully.")
+                GMessageBox.showinfo(
+                    "Operation Complete", "Patch applied successfully."
+                )
             else:
                 if not src_path.is_dir():
-                    messagebox.showerror(
+                    GMessageBox.showerror(
                         "Invalid Source", "Source must be a directory in merge mode."
                     )
                     return
 
                 dst_path = Path(dst)
                 if dst_path.exists():
-                    if not messagebox.askyesno(
+                    if not GMessageBox.askyesno(
                         "Confirm Overwrite",
                         f"The file '{dst_path.name}' already exists.\nDo you want to overwrite it?",
                     ):
@@ -1277,12 +1430,12 @@ def run_gui() -> None:
                     patch_source_history,
                     patch_dest_history,
                 )
-                messagebox.showinfo(
+                GMessageBox.showinfo(
                     "Operation Complete",
                     f"Successfully bundled source code into:\n{dst}\n\nEstimated Tokens: {tokens}",
                 )
         except Exception as error:
-            messagebox.showerror("Operation Failed", str(error))
+            GMessageBox.showerror("Operation Failed", str(error))
 
         progress_var.set(0)
 
