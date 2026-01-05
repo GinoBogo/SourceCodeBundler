@@ -1285,6 +1285,7 @@ def run_gui() -> None:
         filter_tree.bind("<Button-3>", show_context_menu)
         filter_tree.bind("<Escape>", lambda e: context_menu.unpost())
 
+        filter_rules.sort(key=lambda x: x.get("rule", "").lower())
         for f in filter_rules:
             char = GUI_CHECKED_CHAR if f.get("active", True) else GUI_UNCHECKED_CHAR
             filter_tree.insert("", "end", values=(char, f["rule"]))
