@@ -649,7 +649,7 @@ class GMessageBox:
     def _draw_icon(canvas: tk.Canvas, icon: str) -> None:
         """Draws the specified icon onto the canvas."""
         # Use text characters for shapes to ensure antialiasing on all platforms
-        # Circle: ● (U+25CF), Triangle: ▲ (U+25B2), Cross: ✕ (U+2715)
+        # Circle: ● (U+25CF), Triangle: ▲ (U+25B2)
 
         font_family = "Segoe UI" if os.name == "nt" else "Helvetica"
 
@@ -663,13 +663,13 @@ class GMessageBox:
             # Yellow triangle with '!'
             canvas.create_text(28, 28, text="▲", fill="#FFC107", font=(font_family, 64))
             canvas.create_text(
-                28, 32, text="!", fill="black", font=(font_family, 22, "bold")
+                28, 30, text="!", fill="black", font=(font_family, 22, "bold")
             )
         elif icon == "error":
             # Red circle with 'X'
             canvas.create_text(28, 28, text="●", fill="#E81123", font=(font_family, 72))
             canvas.create_text(
-                28, 28, text="✕", fill="white", font=(font_family, 20, "bold")
+                28, 28, text="X", fill="white", font=(font_family, 20, "bold")
             )
         elif icon == "question":
             # Blue circle with '?'
