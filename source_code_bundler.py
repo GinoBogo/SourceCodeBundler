@@ -680,7 +680,11 @@ class GMessageBox:
 
     @staticmethod
     def _create_dialog(
-        title: str, message: str, buttons: List[tuple], icon: Optional[str] = None
+        title: str,
+        message: str,
+        buttons: List[tuple],
+        icon: Optional[str] = None,
+        rich_text: bool = False,
     ) -> Any:
         dialog = tk.Toplevel()
         root = dialog.master
@@ -690,10 +694,13 @@ class GMessageBox:
         dialog.grab_set()
         dialog.resizable(False, False)
 
-        # Use a consistent font
+        # Use consistent font styling
         font_family = "Segoe UI" if os.name == "nt" else "Helvetica"
         font_size = 9 if os.name == "nt" else 10
         font_style = (font_family, font_size)
+
+        # Get dialog background color
+        bg_color = ttk.Style().lookup("TFrame", "background") or "#f0f0f0"
 
         main_frame = ttk.Frame(dialog, padding=20)
         main_frame.pack(fill=tk.BOTH, expand=True)
@@ -702,11 +709,6 @@ class GMessageBox:
         content_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 20))
 
         if icon:
-            # Attempt to match the dialog background color
-            bg_color = ttk.Style().lookup("TFrame", "background")
-            if not bg_color:
-                bg_color = "#f0f0f0"
-
             icon_canvas = tk.Canvas(
                 content_frame,
                 width=56,
@@ -715,24 +717,152 @@ class GMessageBox:
                 bg=bg_color,
             )
             icon_canvas.pack(side=tk.LEFT, anchor=tk.N, padx=(0, 15))
-
             GMessageBox._draw_icon(icon_canvas, icon)
 
-        label = ttk.Label(
-            content_frame,
-            text=message,
-            font=font_style,
-            wraplength=350,
-            justify=tk.LEFT,
-        )
-        label.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        if rich_text:
+            # Calculate appropriate height based on content
+            plain_message = message
+            for tag in [
+                "<b>",
+                "</b>",
+                "<i>",
+                "</i>",
+                "<u>",
+                "</u>",
+                "<red>",
+                "</red>",
+                "<blue>",
+                "</blue>",
+                "<green>",
+                "</green>",
+            ]:
+                plain_message = plain_message.replace(tag, "")
 
+            # Estimate height: ~40 characters per line, min 3 lines, max 10 lines
+            estimated_height = min(max(len(plain_message) // 40 + 1, 3), 10)
+
+            # Use Text widget for rich text support
+            text_widget = tk.Text(
+                content_frame,
+                font=font_style,
+                wrap=tk.WORD,
+                width=40,
+                height=estimated_height,
+                relief=tk.FLAT,
+                borderwidth=0,
+                padx=0,
+                pady=0,
+                bg=bg_color,
+                selectbackground=bg_color,
+                inactiveselectbackground=bg_color,
+                highlightthickness=0,
+                exportselection=False,
+            )
+            text_widget.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+            # Configure tags for formatting
+            text_widget.tag_configure("bold", font=(font_family, font_size, "bold"))
+            text_widget.tag_configure("italic", font=(font_family, font_size, "italic"))
+            text_widget.tag_configure(
+                "underline", font=(font_family, font_size, "normal", "underline")
+            )
+            text_widget.tag_configure("red", foreground="#E81123")
+            text_widget.tag_configure("blue", foreground="#0078D7")
+            text_widget.tag_configure("green", foreground="#107C10")
+
+            # Rich text markup parsing with state tracking
+            i = 0
+            bold_on = False
+            italic_on = False
+            underline_on = False
+            red_on = False
+            blue_on = False
+            green_on = False
+
+            while i < len(message):
+                if message.startswith("<b>", i):
+                    bold_on = True
+                    i += 3
+                    continue
+                elif message.startswith("</b>", i):
+                    bold_on = False
+                    i += 4
+                    continue
+                elif message.startswith("<i>", i):
+                    italic_on = True
+                    i += 3
+                    continue
+                elif message.startswith("</i>", i):
+                    italic_on = False
+                    i += 4
+                    continue
+                elif message.startswith("<u>", i):
+                    underline_on = True
+                    i += 3
+                    continue
+                elif message.startswith("</u>", i):
+                    underline_on = False
+                    i += 4
+                    continue
+                elif message.startswith("<red>", i):
+                    red_on = True
+                    i += 5
+                    continue
+                elif message.startswith("</red>", i):
+                    red_on = False
+                    i += 6
+                    continue
+                elif message.startswith("<blue>", i):
+                    blue_on = True
+                    i += 6
+                    continue
+                elif message.startswith("</blue>", i):
+                    blue_on = False
+                    i += 7
+                    continue
+                elif message.startswith("<green>", i):
+                    green_on = True
+                    i += 7
+                    continue
+                elif message.startswith("</green>", i):
+                    green_on = False
+                    i += 8
+                    continue
+                else:
+                    # Insert character with current formatting
+                    tags = []
+                    if bold_on:
+                        tags.append("bold")
+                    if italic_on:
+                        tags.append("italic")
+                    if underline_on:
+                        tags.append("underline")
+                    if red_on:
+                        tags.append("red")
+                    if blue_on:
+                        tags.append("blue")
+                    if green_on:
+                        tags.append("green")
+
+                    text_widget.insert(tk.END, message[i], tuple(tags) if tags else ())
+                    i += 1
+
+            text_widget.config(state=tk.DISABLED)
+        else:
+            label = ttk.Label(
+                content_frame,
+                text=message,
+                font=font_style,
+                wraplength=350,
+                justify=tk.LEFT,
+            )
+            label.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        # Button setup
         btn_frame = ttk.Frame(main_frame)
         btn_frame.pack(fill=tk.X)
-
         container = ttk.Frame(btn_frame)
         container.pack(anchor=tk.CENTER)
-
         result = None
 
         def on_btn(value):
@@ -740,6 +870,7 @@ class GMessageBox:
             result = value
             dialog.destroy()
 
+        # Create buttons
         for text, value, default in buttons:
             btn = ttk.Button(
                 container,
@@ -753,48 +884,138 @@ class GMessageBox:
                 btn.focus_set()
                 dialog.bind("<Return>", lambda e, v=value: on_btn(v))
 
+        # Keyboard shortcuts
         dialog.bind("<Escape>", lambda e: dialog.destroy())
 
         # Center dialog
         dialog.update_idletasks()
-        w = dialog.winfo_reqwidth()
-        h = dialog.winfo_reqheight()
-
         if root:
-            rx = root.winfo_x()
-            ry = root.winfo_y()
-            rw = root.winfo_width()
-            rh = root.winfo_height()
-
-            x = rx + (rw - w) // 2
-            y = ry + (rh - h) // 2
+            x = root.winfo_x() + (root.winfo_width() - dialog.winfo_reqwidth()) // 2
+            y = root.winfo_y() + (root.winfo_height() - dialog.winfo_reqheight()) // 2
             dialog.geometry(f"+{x}+{y}")
 
         dialog.wait_window()
         return result
 
     @staticmethod
-    def showinfo(title: str, message: str) -> None:
+    def showinfo(title: str, message: str, rich_text: bool = False) -> None:
         GMessageBox._create_dialog(
-            title, message, [("OK", None, True)], icon="information"
+            title,
+            message,
+            [("OK", None, True)],
+            icon="information",
+            rich_text=rich_text,
         )
 
     @staticmethod
-    def showwarning(title: str, message: str) -> None:
-        GMessageBox._create_dialog(title, message, [("OK", None, True)], icon="warning")
+    def showwarning(title: str, message: str, rich_text: bool = False) -> None:
+        GMessageBox._create_dialog(
+            title, message, [("OK", None, True)], icon="warning", rich_text=rich_text
+        )
 
     @staticmethod
-    def showerror(title: str, message: str) -> None:
-        GMessageBox._create_dialog(title, message, [("OK", None, True)], icon="error")
+    def showerror(title: str, message: str, rich_text: bool = False) -> None:
+        GMessageBox._create_dialog(
+            title, message, [("OK", None, True)], icon="error", rich_text=rich_text
+        )
 
     @staticmethod
-    def askyesno(title: str, message: str) -> Optional[bool]:
+    def askyesno(title: str, message: str, rich_text: bool = False) -> Optional[bool]:
         return GMessageBox._create_dialog(
             title,
             message,
             [("Yes", True, True), ("No", False, False)],
             icon="question",
+            rich_text=rich_text,
         )
+
+    @staticmethod
+    def showinfo_rich(title: str, message: str) -> None:
+        """Show info dialog with rich text formatting."""
+        GMessageBox.showinfo(title, message, rich_text=True)
+
+    @staticmethod
+    def showwarning_rich(title: str, message: str) -> None:
+        """Show warning dialog with rich text formatting."""
+        GMessageBox.showwarning(title, message, rich_text=True)
+
+    @staticmethod
+    def showerror_rich(title: str, message: str) -> None:
+        """Show error dialog with rich text formatting."""
+        GMessageBox.showerror(title, message, rich_text=True)
+
+    @staticmethod
+    def askyesno_rich(title: str, message: str) -> Optional[bool]:
+        """Show question dialog with rich text formatting."""
+        return GMessageBox.askyesno(title, message, rich_text=True)
+
+    @staticmethod
+    def askpassword(title: str, message: str) -> Optional[str]:
+        """Show password input dialog with secure entry field."""
+        dialog = tk.Toplevel()
+        root = dialog.master
+        dialog.title(title)
+        if root:
+            dialog.transient(cast(tk.Wm, root))
+        dialog.grab_set()
+        dialog.resizable(False, False)
+
+        # Use consistent font styling
+        font_family = "Segoe UI" if os.name == "nt" else "Helvetica"
+        font_size = 9 if os.name == "nt" else 10
+        font_style = (font_family, font_size)
+
+        main_frame = ttk.Frame(dialog, padding=20)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Message label
+        ttk.Label(main_frame, text=message, font=font_style, wraplength=300).pack(
+            fill=tk.X, pady=(0, 10)
+        )
+
+        # Password entry field
+        password_var = tk.StringVar()
+        entry = ttk.Entry(main_frame, show="*", textvariable=password_var, width=30)
+        entry.pack(fill=tk.X, pady=(0, 20))
+        entry.focus_set()
+
+        # Button frame
+        btn_frame = ttk.Frame(main_frame)
+        btn_frame.pack(fill=tk.X)
+        container = ttk.Frame(btn_frame)
+        container.pack(anchor=tk.CENTER)
+
+        result = None
+
+        def on_ok():
+            nonlocal result
+            result = password_var.get()
+            dialog.destroy()
+
+        def on_cancel():
+            dialog.destroy()
+
+        # OK and Cancel buttons
+        ttk.Button(container, text="OK", command=on_ok, width=10, cursor="hand2").pack(
+            side=tk.LEFT, padx=5
+        )
+        ttk.Button(
+            container, text="Cancel", command=on_cancel, width=10, cursor="hand2"
+        ).pack(side=tk.LEFT, padx=5)
+
+        # Keyboard shortcuts
+        dialog.bind("<Return>", lambda e: on_ok())
+        dialog.bind("<Escape>", lambda e: on_cancel())
+
+        # Center dialog on parent window
+        dialog.update_idletasks()
+        if root:
+            x = root.winfo_x() + (root.winfo_width() - dialog.winfo_reqwidth()) // 2
+            y = root.winfo_y() + (root.winfo_height() - dialog.winfo_reqheight()) // 2
+            dialog.geometry(f"+{x}+{y}")
+
+        dialog.wait_window()
+        return result
 
 
 def select_directory(title: str = "Select Directory") -> str:
