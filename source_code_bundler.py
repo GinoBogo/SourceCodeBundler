@@ -1530,6 +1530,13 @@ def run_gui() -> None:
             cursor="hand2",
         ).pack(pady=(10, 20))
 
+        # Center dialog
+        dialog.update_idletasks()
+        if root:
+            x = root.winfo_x() + (root.winfo_width() - dialog.winfo_reqwidth()) // 2
+            y = root.winfo_y() + (root.winfo_height() - dialog.winfo_reqheight()) // 2
+            dialog.geometry(f"+{x}+{y}")
+
     def run_operation() -> None:
         """Executes merge, split, or patch operation based on current mode."""
         src = source_var.get()
