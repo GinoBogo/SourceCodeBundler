@@ -922,12 +922,14 @@ class GMessageBox:
         )
 
     @staticmethod
-    def askyesno(title: str, message: str, rich_text: bool = False) -> Optional[bool]:
+    def askyesno(
+        title: str, message: str, icon: str = "question", rich_text: bool = False
+    ) -> Optional[bool]:
         return GMessageBox._create_dialog(
             title,
             message,
             [("Yes", True, True), ("No", False, False)],
-            icon="question",
+            icon=icon,
             rich_text=rich_text,
         )
 
@@ -947,9 +949,11 @@ class GMessageBox:
         GMessageBox.showerror(title, message, rich_text=True)
 
     @staticmethod
-    def askyesno_rich(title: str, message: str) -> Optional[bool]:
+    def askyesno_rich(
+        title: str, message: str, icon: str = "question"
+    ) -> Optional[bool]:
         """Show question dialog with rich text formatting."""
-        return GMessageBox.askyesno(title, message, rich_text=True)
+        return GMessageBox.askyesno(title, message, icon=icon, rich_text=True)
 
     @staticmethod
     def askpassword(title: str, message: str) -> Optional[str]:
@@ -1634,9 +1638,10 @@ def run_gui() -> None:
 
                 dst_path = Path(dst)
                 if dst_path.exists():
-                    if not GMessageBox.showwarning(
+                    if not GMessageBox.askyesno(
                         "Confirm Overwrite",
                         f"The file '{dst_path.name}' already exists.\n\nDo you want to overwrite it?",
+                        "warning",
                     ):
                         return
 
