@@ -929,7 +929,7 @@ class GMessageBox:
             title,
             message,
             [("Yes", True, True), ("No", False, False)],
-            icon=icon,
+            icon=icon if icon in ["warning", "error", "information"] else "question",
             rich_text=rich_text,
         )
 
