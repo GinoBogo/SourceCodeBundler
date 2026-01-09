@@ -42,7 +42,8 @@ DEFAULT_EXTENSIONS = [
     ".h",
     ".cpp",
     ".hpp",
-    ".css"]
+    ".css",
+    ".toml"]
 
 COMMENT_SYNTAX = {
     ".py": "#",
@@ -52,6 +53,7 @@ COMMENT_SYNTAX = {
     ".cpp": "//",
     ".hpp": "//",
     ".css": "/*",
+    ".toml": "#",
 }
 
 SEPARATOR_MARKER = "[[ SCB ]]"

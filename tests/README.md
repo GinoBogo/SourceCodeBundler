@@ -6,6 +6,7 @@ This directory contains unit tests for the Source Code Bundler application. The 
 
 ### Core Functionality Tests
 - **test_merge_and_split_cycle_basic**: Test basic merge-split cycle with multiple file types.
+- **test_toml_file_handling**: Test TOML file handling with correct comment syntax.
 - **test_extension_filtering**: Test filtering by file extensions.
 - **test_filter_rules_merge**: Test that filter rules exclude files during merge.
 - **test_filter_rules_split**: Test that filter rules exclude files during split.

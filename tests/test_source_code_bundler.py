@@ -90,6 +90,34 @@ class TestSourceCodeBundler(unittest.TestCase):
                 f"Content mismatch for file '{path}'",
             )
 
+    def test_toml_file_handling(self):
+        """Test TOML file handling with correct comment syntax."""
+        toml_content = '[package]\nname = "test"\nversion = "1.0.0"\n'
+        self._create_test_file("config.toml", toml_content)
+
+        source_code_bundler.merge_source_code(
+            self.src_dir, self.bundle_file, extensions=[".toml"]
+        )
+
+        # Verify bundle content contains correct markers (TOML uses #)
+        with open(self.bundle_file, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        src_dirname = os.path.basename(self.src_dir)
+        expected_start = (
+            f"# {source_code_bundler.START_FILE_MERGE} {src_dirname}/config.toml"
+        )
+        self.assertIn(expected_start, content)
+
+        # Verify split restores the file
+        source_code_bundler.split_source_code(self.bundle_file, self.output_dir)
+
+        restored_path = os.path.join(self.output_dir, src_dirname, "config.toml")
+        self.assertTrue(os.path.exists(restored_path))
+
+        with open(restored_path, "r", encoding="utf-8", newline="") as f:
+            self.assertEqual(f.read(), toml_content)
+
     def test_extension_filtering(self):
         """Test filtering by file extensions."""
         self._create_test_file("script.py", "print('python')")
