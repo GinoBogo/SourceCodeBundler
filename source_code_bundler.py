@@ -1634,9 +1634,9 @@ def run_gui() -> None:
 
                 dst_path = Path(dst)
                 if dst_path.exists():
-                    if not GMessageBox.askyesno(
+                    if not GMessageBox.showwarning(
                         "Confirm Overwrite",
-                        f"The file '{dst_path.name}' already exists.\nDo you want to overwrite it?",
+                        f"The file '{dst_path.name}' already exists.\n\nDo you want to overwrite it?",
                     ):
                         return
 
