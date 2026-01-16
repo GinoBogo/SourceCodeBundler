@@ -925,9 +925,19 @@ class GMessageBox:
         )
 
     @staticmethod
-    def showwarning(title: str, message: str, rich_text: bool = False) -> None:
+    def showwarning(
+        title: str,
+        message: str,
+        parent: Optional[tk.Widget] = None,
+        rich_text: bool = False,
+    ) -> None:
         GMessageBox._create_dialog(
-            title, message, [("OK", None, True)], icon="warning", rich_text=rich_text
+            title,
+            message,
+            parent,
+            [("OK", None, True)],
+            icon="warning",
+            rich_text=rich_text,
         )
 
     @staticmethod
@@ -962,28 +972,6 @@ class GMessageBox:
             icon=icon if icon in ["warning", "error", "information"] else "question",
             rich_text=rich_text,
         )
-
-    @staticmethod
-    def showinfo_rich(title: str, message: str) -> None:
-        """Show info dialog with rich text formatting."""
-        GMessageBox.showinfo(title, message, rich_text=True)
-
-    @staticmethod
-    def showwarning_rich(title: str, message: str) -> None:
-        """Show warning dialog with rich text formatting."""
-        GMessageBox.showwarning(title, message, rich_text=True)
-
-    @staticmethod
-    def showerror_rich(title: str, message: str) -> None:
-        """Show error dialog with rich text formatting."""
-        GMessageBox.showerror(title, message, rich_text=True)
-
-    @staticmethod
-    def askyesno_rich(
-        title: str, message: str, icon: str = "question"
-    ) -> Optional[bool]:
-        """Show question dialog with rich text formatting."""
-        return GMessageBox.askyesno(title, message, icon=icon, rich_text=True)
 
     @staticmethod
     def askpassword(title: str, message: str) -> Optional[str]:
