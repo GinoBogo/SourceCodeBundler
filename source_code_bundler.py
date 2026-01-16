@@ -684,15 +684,24 @@ class GMessageBox:
     def _create_dialog(
         title: str,
         message: str,
-        buttons: List[tuple],
+        parent: Optional[tk.Widget] = None,
+        buttons: List[tuple] = None,
         icon: Optional[str] = None,
         rich_text: bool = False,
     ) -> Any:
+        # Default buttons if not provided
+        if buttons is None:
+            buttons = [("OK", None, True)]
+
         dialog = tk.Toplevel()
-        root = dialog.master
         dialog.title(title)
-        if root:
-            dialog.transient(cast(tk.Wm, root))
+        if parent:
+            dialog.transient(cast(tk.Wm, parent))
+            root = parent
+        else:
+            root = dialog.master
+            if root:
+                dialog.transient(cast(tk.Wm, root))
         dialog.grab_set()
         dialog.resizable(False, False)
 
@@ -900,10 +909,16 @@ class GMessageBox:
         return result
 
     @staticmethod
-    def showinfo(title: str, message: str, rich_text: bool = False) -> None:
+    def showinfo(
+        title: str,
+        message: str,
+        parent: Optional[tk.Widget] = None,
+        rich_text: bool = False,
+    ) -> None:
         GMessageBox._create_dialog(
             title,
             message,
+            parent,
             [("OK", None, True)],
             icon="information",
             rich_text=rich_text,
@@ -916,18 +931,33 @@ class GMessageBox:
         )
 
     @staticmethod
-    def showerror(title: str, message: str, rich_text: bool = False) -> None:
+    def showerror(
+        title: str,
+        message: str,
+        parent: Optional[tk.Widget] = None,
+        rich_text: bool = False,
+    ) -> None:
         GMessageBox._create_dialog(
-            title, message, [("OK", None, True)], icon="error", rich_text=rich_text
+            title,
+            message,
+            parent,
+            [("OK", None, True)],
+            icon="error",
+            rich_text=rich_text,
         )
 
     @staticmethod
     def askyesno(
-        title: str, message: str, icon: str = "question", rich_text: bool = False
+        title: str,
+        message: str,
+        parent: Optional[tk.Widget] = None,
+        icon: str = "question",
+        rich_text: bool = False,
     ) -> Optional[bool]:
         return GMessageBox._create_dialog(
             title,
             message,
+            parent,
             [("Yes", True, True), ("No", False, False)],
             icon=icon if icon in ["warning", "error", "information"] else "question",
             rich_text=rich_text,
@@ -1400,8 +1430,16 @@ def run_gui() -> None:
         """Opens a dialog to select file extensions and filters."""
         dialog = tk.Toplevel(root)
         dialog.title("Options")
-        dialog.geometry("350x400")
-        dialog.minsize(300, 350)
+        dialog.geometry("450x400")
+        dialog.minsize(450, 350)
+
+        # Create local copies of extension states
+        local_extension_vars = {
+            ext: extension_vars[ext].get() for ext in DEFAULT_EXTENSIONS
+        }
+
+        # Create local copy of filter rules
+        local_filter_rules = [f.copy() for f in filter_rules]
 
         notebook = ttk.Notebook(dialog)
         notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
@@ -1423,11 +1461,25 @@ def run_gui() -> None:
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
         for ext in DEFAULT_EXTENSIONS:
-            is_checked = extension_vars[ext].get()
+            is_checked = local_extension_vars[ext]
             char = GUI_CHECKED_CHAR if is_checked else GUI_UNCHECKED_CHAR
             tree.insert("", "end", text=f" {char} {ext}", values=(ext,))
 
-        tree.bind("<Button-1>", lambda e: toggle_checkbox(e, tree, extension_vars))
+        def toggle_checkbox_local(event: tk.Event) -> None:
+            """Toggle the checkbox state for the selected extension in local state."""
+            item_id = tree.identify_row(event.y)
+            if not item_id:
+                return
+
+            ext = tree.item(item_id, "values")[0]
+            current_val = local_extension_vars[ext]
+            new_val = not current_val
+            local_extension_vars[ext] = new_val
+
+            char = GUI_CHECKED_CHAR if new_val else GUI_UNCHECKED_CHAR
+            tree.item(item_id, text=f" {char} {ext}")
+
+        tree.bind("<Button-1>", toggle_checkbox_local)
 
         # Tab 2: Filters
         filters_tab = ttk.Frame(notebook)
@@ -1454,7 +1506,7 @@ def run_gui() -> None:
         filter_tree.config(yscrollcommand=scrollbar.set)
 
         def toggle_filter(event):
-            """Toggles the active state of a filter rule on click."""
+            """Toggles the active state of a filter rule on click in local state."""
             item_id = filter_tree.identify_row(event.y)
             if not item_id:
                 return
@@ -1463,6 +1515,12 @@ def run_gui() -> None:
                 GUI_UNCHECKED_CHAR if vals[0] == GUI_CHECKED_CHAR else GUI_CHECKED_CHAR
             )
             filter_tree.item(item_id, values=(new_char, vals[1]))
+
+            # Update local filter rules
+            for f in local_filter_rules:
+                if f["rule"] == vals[1]:
+                    f["active"] = new_char == GUI_CHECKED_CHAR
+                    break
 
         filter_tree.bind("<Button-1>", toggle_filter)
 
@@ -1473,6 +1531,7 @@ def run_gui() -> None:
             )
             if rule:
                 filter_tree.insert("", "end", values=(GUI_CHECKED_CHAR, rule))
+                local_filter_rules.append({"rule": rule, "active": True})
 
         def edit_filter():
             """Opens dialog to edit the selected filter rule."""
@@ -1485,12 +1544,23 @@ def run_gui() -> None:
             )
             if new_rule:
                 filter_tree.item(selected[0], values=(item["values"][0], new_rule))
+                # Update local filter rules
+                for f in local_filter_rules:
+                    if f["rule"] == item["values"][1]:
+                        f["rule"] = new_rule
+                        break
 
         def remove_filter():
             """Removes the selected filter rule."""
             selected = filter_tree.selection()
             if selected:
+                item = filter_tree.item(selected[0])
+                rule = item["values"][1]
                 filter_tree.delete(selected[0])
+                # Remove from local filter rules
+                local_filter_rules[:] = [
+                    f for f in local_filter_rules if f["rule"] != rule
+                ]
 
         context_menu = tk.Menu(filter_tree, tearoff=0)
         context_menu.add_command(label="Insert", command=insert_filter)
@@ -1512,29 +1582,202 @@ def run_gui() -> None:
         filter_tree.bind("<Button-3>", show_context_menu)
         filter_tree.bind("<Escape>", lambda e: context_menu.unpost())
 
-        filter_rules.sort(key=lambda x: x.get("rule", "").lower())
-        for f in filter_rules:
+        local_filter_rules.sort(key=lambda x: x.get("rule", "").lower())
+        for f in local_filter_rules:
             char = GUI_CHECKED_CHAR if f.get("active", True) else GUI_UNCHECKED_CHAR
             filter_tree.insert("", "end", values=(char, f["rule"]))
 
-        def close_options():
-            """Saves filter rules and closes the options dialog."""
+        def open_project_file():
+            """Opens a JSON project file and loads its settings."""
+            filename = filedialog.askopenfilename(
+                parent=dialog,
+                title="Open Project File",
+                filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
+            )
+            if filename:
+                try:
+                    with open(filename, "r", encoding="utf-8") as f:
+                        project_config = json.load(f)
+
+                    # Update local extension vars
+                    if "extensions" in project_config:
+                        for ext in DEFAULT_EXTENSIONS:
+                            local_extension_vars[ext] = project_config[
+                                "extensions"
+                            ].get(ext, True)
+
+                    # Update local filter rules
+                    if "filters" in project_config:
+                        local_filter_rules.clear()
+                        local_filter_rules.extend(
+                            [f.copy() for f in project_config["filters"]]
+                        )
+
+                    # Update overwrite mode
+                    if "overwrite_mode" in project_config:
+                        overwrite_mode.set(project_config["overwrite_mode"])
+
+                    # Update histories (limit to one entry each)
+                    if (
+                        "merge_source_history" in project_config
+                        and project_config["merge_source_history"]
+                    ):
+                        source_var.set(project_config["merge_source_history"][0])
+                    if (
+                        "merge_dest_history" in project_config
+                        and project_config["merge_dest_history"]
+                    ):
+                        dest_var.set(project_config["merge_dest_history"][0])
+                    if (
+                        "split_source_history" in project_config
+                        and project_config["split_source_history"]
+                    ):
+                        source_var.set(project_config["split_source_history"][0])
+                    if (
+                        "split_dest_history" in project_config
+                        and project_config["split_dest_history"]
+                    ):
+                        dest_var.set(project_config["split_dest_history"][0])
+                    if (
+                        "patch_source_history" in project_config
+                        and project_config["patch_source_history"]
+                    ):
+                        source_var.set(project_config["patch_source_history"][0])
+                    if (
+                        "patch_dest_history" in project_config
+                        and project_config["patch_dest_history"]
+                    ):
+                        dest_var.set(project_config["patch_dest_history"][0])
+
+                    # Refresh UI
+                    # Clear and repopulate extensions tree
+                    for item in tree.get_children():
+                        tree.delete(item)
+                    for ext in DEFAULT_EXTENSIONS:
+                        is_checked = local_extension_vars[ext]
+                        char = GUI_CHECKED_CHAR if is_checked else GUI_UNCHECKED_CHAR
+                        tree.insert("", "end", text=f" {char} {ext}", values=(ext,))
+
+                    # Clear and repopulate filters tree
+                    for item in filter_tree.get_children():
+                        filter_tree.delete(item)
+                    local_filter_rules.sort(key=lambda x: x.get("rule", "").lower())
+                    for f in local_filter_rules:
+                        char = (
+                            GUI_CHECKED_CHAR
+                            if f.get("active", True)
+                            else GUI_UNCHECKED_CHAR
+                        )
+                        filter_tree.insert("", "end", values=(char, f["rule"]))
+
+                except Exception as e:
+                    GMessageBox.showerror(
+                        "Error", f"Failed to open project file:\n{e}", parent=dialog
+                    )
+
+        def save_project_file():
+            """Saves current settings to a JSON project file."""
+            filename = filedialog.asksaveasfilename(
+                parent=dialog,
+                title="Save Project File",
+                defaultextension="json",
+                filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
+            )
+            if filename:
+                # Ensure filename has .json extension
+                if not filename.lower().endswith(".json"):
+                    filename += ".json"
+
+                try:
+                    project_config = {
+                        "extensions": {
+                            ext: local_extension_vars[ext] for ext in DEFAULT_EXTENSIONS
+                        },
+                        "filters": local_filter_rules,
+                        "overwrite_mode": overwrite_mode.get(),
+                        "merge_source_history": [source_var.get()]
+                        if source_var.get()
+                        else [],
+                        "merge_dest_history": [dest_var.get()]
+                        if dest_var.get()
+                        else [],
+                        "split_source_history": [source_var.get()]
+                        if source_var.get()
+                        else [],
+                        "split_dest_history": [dest_var.get()]
+                        if dest_var.get()
+                        else [],
+                        "patch_source_history": [source_var.get()]
+                        if source_var.get()
+                        else [],
+                        "patch_dest_history": [dest_var.get()]
+                        if dest_var.get()
+                        else [],
+                    }
+
+                    with open(filename, "w", encoding="utf-8") as f:
+                        json.dump(project_config, f, indent=4)
+
+                    GMessageBox.showinfo(
+                        "Success", "Project file saved successfully!", parent=dialog
+                    )
+                except Exception as e:
+                    GMessageBox.showerror(
+                        "Error", f"Failed to save project file:\n{e}", parent=dialog
+                    )
+
+        def apply_options():
+            """Saves changes to global state and closes the options dialog."""
+            # Update global extension vars
+            for ext in DEFAULT_EXTENSIONS:
+                extension_vars[ext].set(local_extension_vars[ext])
+
+            # Update global filter rules
             filter_rules.clear()
-            for child in filter_tree.get_children():
-                vals = filter_tree.item(child, "values")
-                active = vals[0] == GUI_CHECKED_CHAR
-                filter_rules.append({"rule": vals[1], "active": active})
+            filter_rules.extend(local_filter_rules)
             dialog.destroy()
 
-        dialog.protocol("WM_DELETE_WINDOW", close_options)
+        def cancel_options():
+            """Closes the options dialog without saving changes."""
+            dialog.destroy()
+
+        dialog.protocol("WM_DELETE_WINDOW", cancel_options)
+
+        # Open, Save, Apply, and Cancel buttons
+        button_frame = ttk.Frame(dialog)
+        button_frame.pack(pady=(10, 20))
 
         ttk.Button(
-            dialog,
-            text="Close",
-            command=close_options,
+            button_frame,
+            text="Open",
+            command=open_project_file,
             width=BUTTON_WIDTH,
             cursor="hand2",
-        ).pack(pady=(10, 20))
+        ).pack(side=tk.LEFT, padx=5)
+
+        ttk.Button(
+            button_frame,
+            text="Save",
+            command=save_project_file,
+            width=BUTTON_WIDTH,
+            cursor="hand2",
+        ).pack(side=tk.LEFT, padx=5)
+
+        ttk.Button(
+            button_frame,
+            text="Apply",
+            command=apply_options,
+            width=BUTTON_WIDTH,
+            cursor="hand2",
+        ).pack(side=tk.LEFT, padx=5)
+
+        ttk.Button(
+            button_frame,
+            text="Cancel",
+            command=cancel_options,
+            width=BUTTON_WIDTH,
+            cursor="hand2",
+        ).pack(side=tk.LEFT, padx=5)
 
         # Center dialog
         dialog.update_idletasks()
@@ -1641,6 +1884,7 @@ def run_gui() -> None:
                     if not GMessageBox.askyesno(
                         "Confirm Overwrite",
                         f"The file '{dst_path.name}' already exists.\n\nDo you want to overwrite it?",
+                        root,
                         "warning",
                     ):
                         return

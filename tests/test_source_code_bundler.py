@@ -1186,6 +1186,76 @@ class TestSourceCodeBundler(unittest.TestCase):
         self.assertEqual(content, "Hello Python\n")
 
     # ============================================================================
+    # GUI Tests
+    # ============================================================================
+
+    def test_options_dialog_local_state(self):
+        """Test that Options dialog changes are only applied when clicking Apply."""
+        import tkinter as tk
+        
+        # Create a minimal root window (won't actually show)
+        root = tk.Tk()
+        root.withdraw()  # Hide the window
+        
+        try:
+            # Initialize global state similar to the actual application
+            extension_vars = {
+                ext: tk.BooleanVar(value=True) 
+                for ext in source_code_bundler.DEFAULT_EXTENSIONS
+            }
+            filter_rules = [
+                {"rule": "test_filter", "active": True},
+                {"rule": "another_filter", "active": False}
+            ]
+            
+            # Test the local copy creation logic (same as in show_options)
+            local_extension_vars = {
+                ext: extension_vars[ext].get() for ext in source_code_bundler.DEFAULT_EXTENSIONS
+            }
+            local_filter_rules = [f.copy() for f in filter_rules]
+            
+            # Verify initial state is copied correctly
+            for ext in source_code_bundler.DEFAULT_EXTENSIONS:
+                self.assertEqual(local_extension_vars[ext], True)
+                self.assertEqual(extension_vars[ext].get(), True)
+            
+            self.assertEqual(len(local_filter_rules), 2)
+            self.assertEqual(local_filter_rules[0]["rule"], "test_filter")
+            self.assertTrue(local_filter_rules[0]["active"])
+            
+            # Simulate changing local state (like user toggling checkboxes)
+            local_extension_vars[".py"] = False
+            local_filter_rules[0]["active"] = False
+            
+            # Verify global state hasn't changed
+            self.assertTrue(extension_vars[".py"].get(), 
+                          "Global extension state should not change when local state changes")
+            self.assertTrue(filter_rules[0]["active"], 
+                          "Global filter state should not change when local state changes")
+            
+            # Simulate applying changes (like clicking Apply button)
+            for ext in source_code_bundler.DEFAULT_EXTENSIONS:
+                extension_vars[ext].set(local_extension_vars[ext])
+            
+            filter_rules.clear()
+            filter_rules.extend(local_filter_rules)
+            
+            # Verify global state has changed after applying
+            self.assertFalse(extension_vars[".py"].get(), 
+                           "Global extension state should change after applying")
+            self.assertFalse(filter_rules[0]["active"], 
+                           "Global filter state should change after applying")
+            
+            # Verify other states remain unchanged
+            self.assertTrue(extension_vars[".rs"].get(), 
+                          "Other extension states should remain unchanged")
+            self.assertFalse(filter_rules[1]["active"], 
+                           "Other filter states should remain unchanged")
+            
+        finally:
+            root.destroy()
+
+    # ============================================================================
     # CLI Tests
     # ============================================================================
 

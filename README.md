@@ -51,7 +51,30 @@ python source_code_bundler.py
 1. Select **Merge Mode**.
 2. Click **Browse** next to "Source Directory" to choose the folder containing your source code.
 3. Click **Save As** next to "Output File" to choose where to save the bundled text file.
-4. (Optional) Click **Options** to filter specific file extensions.
+4. (Optional) Click **Options** to filter specific file extensions and manage project settings.
+
+### Project Files (Open/Save)
+
+The Options dialog supports saving and loading project files:
+
+1. Click **Options** to open the configuration dialog.
+2. **Save Project**: Saves your current settings (extensions, filters, overwrite mode, and recent paths) to a JSON file.
+3. **Open Project**: Loads a previously saved project file and restores all settings.
+4. **Apply**: Applies changes made in the Options dialog to the global application state.
+5. **Cancel**: Discards changes and closes the Options dialog.
+
+Project files store:
+- Selected file extensions
+- Filter rules and their active states
+- Overwrite mode preference
+- Recent source/destination paths (limited to one entry per operation type)
+
+This allows you to:
+- Save different configurations for different projects
+- Share project configurations between machines
+- Quickly restore your preferred workspace setup
+- Backup your settings before making changes
+
 5. Click **Execute**. The application will display the estimated token count upon completion.
 
 ### Splitting Files (Unbundle)

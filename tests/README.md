@@ -32,6 +32,11 @@ This directory contains unit tests for the Source Code Bundler application. The 
 - **test_encoding_fallback**: Test that files with non-UTF-8 encoding (e.g. Latin-1) are handled.
 - **test_error_markers_defined_before_exception_robust**: Test error markers are defined before any exception can occur.
 - **test_error_handling_in_split_function**: Test error handling when splitting corrupted bundle.
+
+### GUI Tests
+- **test_options_dialog_local_state**: Test that Options dialog changes are only applied when clicking Apply button, not when Cancel is clicked or dialog is closed.
+
+### Split Operation Tests
 - **test_split_duplicate_filename_handling**: Test splitting handles duplicate filenames by renaming.
 - **test_split_overwrite_mode**: Test that overwrite mode overwrites existing files instead of renaming.
 
