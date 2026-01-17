@@ -644,6 +644,89 @@ def apply_patch(
 # GUI Helper Functions
 
 
+def get_font_style() -> tuple:
+    """Returns consistent font styling based on operating system.
+
+    Returns:
+        tuple: (font_family, font_size, font_style)
+    """
+    font_family = "Segoe UI" if os.name == "nt" else "Helvetica"
+    font_size = 9 if os.name == "nt" else 10
+    font_style = (font_family, font_size)
+    return font_family, font_size, font_style
+
+
+def center_dialog(parent: tk.Widget, dialog: tk.Toplevel) -> None:
+    """Centers a dialog relative to its parent window.
+
+    Args:
+        parent: Parent widget to center relative to.
+        dialog: Dialog window to center.
+    """
+    dialog.update_idletasks()
+    if parent:
+        x = parent.winfo_x() + (parent.winfo_width() - dialog.winfo_reqwidth()) // 2
+        y = parent.winfo_y() + (parent.winfo_height() - dialog.winfo_reqheight()) // 2
+        dialog.geometry(f"+{x}+{y}")
+
+
+def create_styled_button(
+    parent: tk.Widget,
+    text: str,
+    command: Callable,
+    width: Optional[int] = None,
+    **kwargs,
+) -> ttk.Button:
+    """Creates a consistently styled button.
+
+    Args:
+        parent: Parent widget.
+        text: Button text.
+        command: Button command function.
+        width: Button width (defaults to BUTTON_WIDTH).
+        **kwargs: Additional ttk.Button arguments.
+
+    Returns:
+        ttk.Button: Configured button widget.
+    """
+    if width is None:
+        width = BUTTON_WIDTH
+
+    return ttk.Button(
+        parent, text=text, command=command, width=width, cursor="hand2", **kwargs
+    )
+
+
+def get_checkbox_char(is_checked: bool) -> str:
+    """Returns the appropriate checkbox character.
+
+    Args:
+        is_checked: Whether the checkbox is checked.
+
+    Returns:
+        str: Checkbox character (✓ or ☐).
+    """
+    return GUI_CHECKED_CHAR if is_checked else GUI_UNCHECKED_CHAR
+
+
+def insert_checkbox_item(
+    tree: ttk.Treeview, text: str, values: tuple, is_checked: bool = True
+) -> str:
+    """Inserts a checkbox item into a treeview.
+
+    Args:
+        tree: Treeview widget.
+        text: Display text for the item.
+        values: Values tuple for the item.
+        is_checked: Whether the checkbox is checked.
+
+    Returns:
+        str: Item ID of the inserted item.
+    """
+    checkbox_text = f" {get_checkbox_char(is_checked)} {text}"
+    return tree.insert("", "end", text=checkbox_text, values=values)
+
+
 class GMessageBox:
     """Custom message box with consistent font sizing."""
 
@@ -653,7 +736,7 @@ class GMessageBox:
         # Use text characters for shapes to ensure antialiasing on all platforms
         # Circle: ● (U+25CF), Triangle: ▲ (U+25B2)
 
-        font_family = "Segoe UI" if os.name == "nt" else "Helvetica"
+        font_family, _, _ = get_font_style()
 
         if icon == "information":
             # Blue circle with 'i'
@@ -706,9 +789,7 @@ class GMessageBox:
         dialog.resizable(False, False)
 
         # Use consistent font styling
-        font_family = "Segoe UI" if os.name == "nt" else "Helvetica"
-        font_size = 9 if os.name == "nt" else 10
-        font_style = (font_family, font_size)
+        font_family, font_size, font_style = get_font_style()
 
         # Get dialog background color
         bg_color = ttk.Style().lookup("TFrame", "background") or "#f0f0f0"
@@ -899,11 +980,7 @@ class GMessageBox:
         dialog.bind("<Escape>", lambda e: dialog.destroy())
 
         # Center dialog
-        dialog.update_idletasks()
-        if root:
-            x = root.winfo_x() + (root.winfo_width() - dialog.winfo_reqwidth()) // 2
-            y = root.winfo_y() + (root.winfo_height() - dialog.winfo_reqheight()) // 2
-            dialog.geometry(f"+{x}+{y}")
+        center_dialog(root, dialog)
 
         dialog.wait_window()
         return result
@@ -985,9 +1062,7 @@ class GMessageBox:
         dialog.resizable(False, False)
 
         # Use consistent font styling
-        font_family = "Segoe UI" if os.name == "nt" else "Helvetica"
-        font_size = 9 if os.name == "nt" else 10
-        font_style = (font_family, font_size)
+        font_family, font_size, font_style = get_font_style()
 
         main_frame = ttk.Frame(dialog, padding=20)
         main_frame.pack(fill=tk.BOTH, expand=True)
@@ -1020,23 +1095,19 @@ class GMessageBox:
             dialog.destroy()
 
         # OK and Cancel buttons
-        ttk.Button(container, text="OK", command=on_ok, width=10, cursor="hand2").pack(
+        create_styled_button(container, "OK", on_ok, width=10).pack(
             side=tk.LEFT, padx=5
         )
-        ttk.Button(
-            container, text="Cancel", command=on_cancel, width=10, cursor="hand2"
-        ).pack(side=tk.LEFT, padx=5)
+        create_styled_button(container, "Cancel", on_cancel, width=10).pack(
+            side=tk.LEFT, padx=5
+        )
 
         # Keyboard shortcuts
         dialog.bind("<Return>", lambda e: on_ok())
         dialog.bind("<Escape>", lambda e: on_cancel())
 
         # Center dialog on parent window
-        dialog.update_idletasks()
-        if root:
-            x = root.winfo_x() + (root.winfo_width() - dialog.winfo_reqwidth()) // 2
-            y = root.winfo_y() + (root.winfo_height() - dialog.winfo_reqheight()) // 2
-            dialog.geometry(f"+{x}+{y}")
+        center_dialog(root, dialog)
 
         dialog.wait_window()
         return result
@@ -1133,20 +1204,12 @@ def _create_rule_input_dialog(
     btn_container = ttk.Frame(button_frame)
     btn_container.pack(anchor=tk.CENTER)
 
-    ttk.Button(
-        btn_container,
-        text="Apply",
-        command=on_apply,
-        width=BUTTON_WIDTH,
-        cursor="hand2",
-    ).pack(side=tk.LEFT, padx=5, pady=10)
-    ttk.Button(
-        btn_container,
-        text="Cancel",
-        command=input_dialog.destroy,
-        width=BUTTON_WIDTH,
-        cursor="hand2",
-    ).pack(side=tk.LEFT, padx=5, pady=10)
+    create_styled_button(btn_container, "Apply", on_apply).pack(
+        side=tk.LEFT, padx=5, pady=10
+    )
+    create_styled_button(btn_container, "Cancel", input_dialog.destroy).pack(
+        side=tk.LEFT, padx=5, pady=10
+    )
 
     input_dialog.wait_window()
     return result
@@ -1197,7 +1260,7 @@ def toggle_checkbox(
     new_val = not current_val
     extension_vars[ext].set(new_val)
 
-    char = GUI_CHECKED_CHAR if new_val else GUI_UNCHECKED_CHAR
+    char = get_checkbox_char(new_val)
     tree.item(item_id, text=f" {char} {ext}")
 
 
@@ -1450,8 +1513,7 @@ def run_gui() -> None:
 
         for ext in DEFAULT_EXTENSIONS:
             is_checked = local_extension_vars[ext]
-            char = GUI_CHECKED_CHAR if is_checked else GUI_UNCHECKED_CHAR
-            tree.insert("", "end", text=f" {char} {ext}", values=(ext,))
+            insert_checkbox_item(tree, ext, (ext,), is_checked)
 
         def toggle_checkbox_local(event: tk.Event) -> None:
             """Toggle the checkbox state for the selected extension in local state."""
@@ -1464,7 +1526,7 @@ def run_gui() -> None:
             new_val = not current_val
             local_extension_vars[ext] = new_val
 
-            char = GUI_CHECKED_CHAR if new_val else GUI_UNCHECKED_CHAR
+            char = get_checkbox_char(new_val)
             tree.item(item_id, text=f" {char} {ext}")
 
         tree.bind("<Button-1>", toggle_checkbox_local)
@@ -1499,15 +1561,14 @@ def run_gui() -> None:
             if not item_id:
                 return
             vals = filter_tree.item(item_id, "values")
-            new_char = (
-                GUI_UNCHECKED_CHAR if vals[0] == GUI_CHECKED_CHAR else GUI_CHECKED_CHAR
-            )
+            is_checked = vals[0] == GUI_CHECKED_CHAR
+            new_char = get_checkbox_char(not is_checked)
             filter_tree.item(item_id, values=(new_char, vals[1]))
 
             # Update local filter rules
             for f in local_filter_rules:
                 if f["rule"] == vals[1]:
-                    f["active"] = new_char == GUI_CHECKED_CHAR
+                    f["active"] = not is_checked
                     break
 
         filter_tree.bind("<Button-1>", toggle_filter)
@@ -1518,7 +1579,7 @@ def run_gui() -> None:
                 dialog, "Insert Filter", "Enter filter rule (e.g., node_modules):"
             )
             if rule:
-                filter_tree.insert("", "end", values=(GUI_CHECKED_CHAR, rule))
+                filter_tree.insert("", "end", values=(get_checkbox_char(True), rule))
                 local_filter_rules.append({"rule": rule, "active": True})
 
         def edit_filter():
@@ -1572,7 +1633,7 @@ def run_gui() -> None:
 
         local_filter_rules.sort(key=lambda x: x.get("rule", "").lower())
         for f in local_filter_rules:
-            char = GUI_CHECKED_CHAR if f.get("active", True) else GUI_UNCHECKED_CHAR
+            char = get_checkbox_char(f.get("active", True))
             filter_tree.insert("", "end", values=(char, f["rule"]))
 
         def open_project_file():
@@ -1643,19 +1704,14 @@ def run_gui() -> None:
                         tree.delete(item)
                     for ext in DEFAULT_EXTENSIONS:
                         is_checked = local_extension_vars[ext]
-                        char = GUI_CHECKED_CHAR if is_checked else GUI_UNCHECKED_CHAR
-                        tree.insert("", "end", text=f" {char} {ext}", values=(ext,))
+                        insert_checkbox_item(tree, ext, (ext,), is_checked)
 
                     # Clear and repopulate filters tree
                     for item in filter_tree.get_children():
                         filter_tree.delete(item)
                     local_filter_rules.sort(key=lambda x: x.get("rule", "").lower())
                     for f in local_filter_rules:
-                        char = (
-                            GUI_CHECKED_CHAR
-                            if f.get("active", True)
-                            else GUI_UNCHECKED_CHAR
-                        )
+                        char = get_checkbox_char(f.get("active", True))
                         filter_tree.insert("", "end", values=(char, f["rule"]))
 
                 except Exception as e:
@@ -1735,44 +1791,24 @@ def run_gui() -> None:
         button_frame = ttk.Frame(dialog)
         button_frame.pack(pady=(10, 20))
 
-        ttk.Button(
-            button_frame,
-            text="Open",
-            command=open_project_file,
-            width=BUTTON_WIDTH,
-            cursor="hand2",
-        ).pack(side=tk.LEFT, padx=5)
+        create_styled_button(button_frame, "Open", open_project_file).pack(
+            side=tk.LEFT, padx=5
+        )
 
-        ttk.Button(
-            button_frame,
-            text="Save",
-            command=save_project_file,
-            width=BUTTON_WIDTH,
-            cursor="hand2",
-        ).pack(side=tk.LEFT, padx=5)
+        create_styled_button(button_frame, "Save", save_project_file).pack(
+            side=tk.LEFT, padx=5
+        )
 
-        ttk.Button(
-            button_frame,
-            text="Apply",
-            command=apply_options,
-            width=BUTTON_WIDTH,
-            cursor="hand2",
-        ).pack(side=tk.LEFT, padx=5)
+        create_styled_button(button_frame, "Apply", apply_options).pack(
+            side=tk.LEFT, padx=5
+        )
 
-        ttk.Button(
-            button_frame,
-            text="Cancel",
-            command=cancel_options,
-            width=BUTTON_WIDTH,
-            cursor="hand2",
-        ).pack(side=tk.LEFT, padx=5)
+        create_styled_button(button_frame, "Cancel", cancel_options).pack(
+            side=tk.LEFT, padx=5
+        )
 
         # Center dialog
-        dialog.update_idletasks()
-        if root:
-            x = root.winfo_x() + (root.winfo_width() - dialog.winfo_reqwidth()) // 2
-            y = root.winfo_y() + (root.winfo_height() - dialog.winfo_reqheight()) // 2
-            dialog.geometry(f"+{x}+{y}")
+        center_dialog(root, dialog)
 
     def run_operation() -> None:
         """Executes merge, split, or patch operation based on current mode."""
@@ -1964,13 +2000,7 @@ def run_gui() -> None:
     )
     source_entry.grid(row=0, column=1, sticky=tk.W + tk.E, padx=5)
 
-    source_button = ttk.Button(
-        input_frame,
-        text="Browse",
-        command=select_source,
-        width=BUTTON_WIDTH,
-        cursor="hand2",
-    )
+    source_button = create_styled_button(input_frame, "Browse", select_source)
     source_button.grid(row=0, column=2, padx=5, pady=5)
 
     destination_label = ttk.Label(
@@ -1983,12 +2013,8 @@ def run_gui() -> None:
     )
     destination_entry.grid(row=1, column=1, sticky=tk.W + tk.E, padx=5)
 
-    destination_button = ttk.Button(
-        input_frame,
-        text="Save As",
-        command=select_destination,
-        width=BUTTON_WIDTH,
-        cursor="hand2",
+    destination_button = create_styled_button(
+        input_frame, "Save As", select_destination
     )
     destination_button.grid(row=1, column=2, padx=5, pady=5)
 
@@ -2040,22 +2066,10 @@ def run_gui() -> None:
     button_frame = ttk.Frame(action_frame)
     button_frame.grid(row=1, column=0, pady=10, sticky="s")
 
-    options_button = ttk.Button(
-        button_frame,
-        text="Options",
-        command=show_options,
-        width=BUTTON_WIDTH,
-        cursor="hand2",
-    )
+    options_button = create_styled_button(button_frame, "Options", show_options)
     options_button.pack(side=tk.LEFT, padx=5)
 
-    execute_button = ttk.Button(
-        button_frame,
-        text="Execute",
-        command=run_operation,
-        width=BUTTON_WIDTH,
-        cursor="hand2",
-    )
+    execute_button = create_styled_button(button_frame, "Execute", run_operation)
     execute_button.pack(side=tk.LEFT, padx=5)
 
     def on_closing() -> None:
