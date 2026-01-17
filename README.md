@@ -7,6 +7,7 @@ A versatile Python utility designed to merge multiple source code files into a s
 - **Merge Mode**: Recursively scans a directory and combines source files into a single text file.
 - **Split Mode**: Reconstructs the original file and directory structure from a bundled file.
 - **Patch Mode**: Applies standard diff/patch files to a target directory.
+- **Source Files Mode**: Select and merge specific individual files (bypasses extension/filter restrictions).
 - **Language Support**: Automatically handles comment syntax for headers in Python (`.py`), Rust (`.rs`), C/C++ (`.c`, `.h`, `.cpp`, `.hpp`), CSS (`.css`), and TOML (`.toml`).
 - **GUI Interface**: User-friendly graphical interface built with Tkinter.
 - **CLI Support**: Command-line interface for batch processing and automation.

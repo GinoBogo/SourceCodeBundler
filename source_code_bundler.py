@@ -355,7 +355,195 @@ def read_file_content(file_path: Path) -> str:
 # Core Logic Functions
 
 
-def merge_source_code(
+def merge_source_files(
+    source_files: List[str],
+    output_file: str,
+    extensions: Optional[List[str]] = None,
+    filters: Optional[List[dict]] = None,
+    progress_callback: Optional[Callable] = None,
+) -> int:
+    """Combines multiple source files into a single file.
+
+    Args:
+        source_files: List of file paths to combine.
+        output_file: Path to the output combined file.
+        extensions: List of file extensions to include.
+        filters: List of filter rules to exclude files/directories.
+        progress_callback: Optional callback for progress updates (current, total).
+
+    Returns:
+        int: Estimated number of tokens for the bundled content.
+    """
+    if extensions is None:
+        extensions = []  # Empty list means accept all extensions
+
+    output_path = Path(output_file)
+
+    # Filter files by extension and filters
+    valid_files = []
+    filtered_files = []
+    wrong_extension_files = []
+
+    for file_path_str in source_files:
+        file_path = Path(file_path_str.strip())
+        if not file_path.is_file():
+            continue
+
+        # Check extension (only if extensions are specified and not empty)
+        if (
+            extensions is not None
+            and extensions
+            and file_path.suffix.lower() not in extensions
+        ):
+            wrong_extension_files.append(str(file_path))
+            continue
+
+        # Check filters (only if filters are specified and not empty)
+        if filters is not None and filters and _matches_filter(file_path, filters):
+            filtered_files.append(str(file_path))
+            continue
+
+        valid_files.append(file_path)
+
+    total_files = len(valid_files)
+    if total_files == 0:
+        error_msg = "No valid files to merge."
+        # Only show extension/filter errors if we're actually checking them
+        if extensions is not None and extensions and wrong_extension_files:
+            error_msg += "\n\nFiles with unsupported extensions: " + ", ".join(
+                wrong_extension_files
+            )
+            error_msg += "\n\nTo include these files, go to Options and enable the corresponding file extensions."
+        if filters is not None and filters and filtered_files:
+            error_msg += "\n\nFiles filtered out: " + ", ".join(filtered_files)
+            error_msg += (
+                "\n\nTo include these files, go to Options and adjust the filter rules."
+            )
+        if not source_files or all(not f.strip() for f in source_files):
+            error_msg = "No files selected."
+        raise ValueError(error_msg)
+
+    # Pre-read files to generate index statistics and cache content
+    content_cache = {}
+    max_size_len = 0
+    max_lines_len = 0
+
+    for file_path in valid_files:
+        try:
+            content = read_file_content(file_path)
+            size_kb = len(content.encode("utf-8")) / 1024
+            lines = content.count("\n") + 1
+            size_str = f"{size_kb:.1f}"
+            content_cache[file_path] = (content, size_str, lines, None)
+            max_size_len = max(max_size_len, len(size_str))
+            max_lines_len = max(max_lines_len, len(str(lines)))
+        except Exception as e:
+            content_cache[file_path] = (None, None, 0, e)
+
+    # Determine bundle comment syntax
+    bundle_suffix = output_path.suffix.lower()
+    bundle_comment_char = COMMENT_SYNTAX.get(bundle_suffix, "#")
+    is_css_bundle = bundle_suffix == ".css"
+    total_chars = 0
+
+    with output_path.open("w", encoding="utf-8", newline="") as outfile:
+        if total_files > 0:
+            # Write File Index
+            def write_index_line(text: str):
+                """Writes a line to the index section with appropriate comments."""
+                nonlocal total_chars
+                line = ""
+                if is_css_bundle:
+                    line = f"{bundle_comment_char} {text} */\n"
+                else:
+                    line = f"{bundle_comment_char} {text}\n"
+                outfile.write(line)
+                total_chars += len(line)
+
+            write_index_line(START_FILE_INDEX)
+            write_index_line(f"Total Files: {total_files}")
+            write_index_line("")
+
+            # Calculate max path length for alignment
+            # In Source Files Mode (extensions is empty list), use relative paths
+            if extensions == []:
+                # Source Files Mode: calculate relative paths from common base
+                # Find common base path of all selected files
+                if valid_files:
+                    common_path = os.path.commonpath([str(fp) for fp in valid_files])
+                    display_paths = []
+                    for fp in valid_files:
+                        # Calculate relative path from common base
+                        rel_path = os.path.relpath(str(fp), common_path)
+                        display_paths.append(rel_path)
+                else:
+                    display_paths = []
+            else:
+                # Directory Mode: use full paths
+                display_paths = [str(fp) for fp in valid_files]
+
+            max_path_len = max((len(path) for path in display_paths), default=0)
+
+            for file_path, display_path in zip(valid_files, display_paths):
+                content, size_str, lines, error = content_cache[file_path]
+                if content is not None:
+                    write_index_line(
+                        f"{display_path.ljust(max_path_len)} | SIZE: {size_str:>{max_size_len}}kb | LINES: {lines:>{max_lines_len}}"
+                    )
+                else:
+                    write_index_line(
+                        f"{display_path.ljust(max_path_len)} [Error reading file]"
+                    )
+            write_index_line(END_FILE_INDEX)
+            outfile.write("\n")
+            total_chars += 1
+
+        for index, (file_path, display_path) in enumerate(
+            zip(valid_files, display_paths), 1
+        ):
+            # Initialize variables
+            suffix = file_path.suffix.lower()
+            markers = _get_markers(suffix, display_path)  # Use display_path for markers
+
+            try:
+                # Write Start
+                s = f"{markers['start']}\n"
+                outfile.write(s)
+                total_chars += len(s)
+
+                # Write Content (from cache)
+                content, _, _, error = content_cache[file_path]
+                if error:
+                    raise error
+
+                outfile.write(content)
+                total_chars += len(content)
+                if content and not content.endswith(("\n", "\r")):
+                    outfile.write("\n")
+                    total_chars += 1
+
+                # Write End
+                s = f"{markers['end']}\n\n"
+                outfile.write(s)
+                total_chars += len(s)
+
+            except Exception as e:
+                error_msg = (
+                    "Cannot read file (binary or unsupported encoding)"
+                    if isinstance(e, UnicodeDecodeError)
+                    else str(e)
+                )
+                s = f"{markers['err_start']}\n{markers['err_msg_prefix']} {error_msg}{markers['err_msg_suffix']}\n{markers['err_end']}\n\n"
+                outfile.write(s)
+                total_chars += len(s)
+
+            if progress_callback:
+                progress_callback(index, total_files)
+
+    return total_chars // 4
+
+
+def merge_source_folder(
     source_dir: str,
     output_file: str,
     extensions: Optional[List[str]] = None,
@@ -1138,6 +1326,21 @@ def select_file(title: str = "Select File", filetypes: Optional[List] = None) ->
     return filedialog.askopenfilename(title=title, filetypes=filetypes)
 
 
+def select_files(
+    title: str = "Select Files", filetypes: Optional[List] = None
+) -> List[str]:
+    """Opens a file selection dialog that allows multiple file selection.
+
+    Args:
+        title: Dialog window title.
+        filetypes: List of file type tuples [(description, pattern)].
+
+    Returns:
+        List[str]: List of selected file paths or empty list if canceled.
+    """
+    return filedialog.askopenfilenames(title=title, filetypes=filetypes)
+
+
 def save_file_dialog(title: str = "Save File", filetypes: Optional[List] = None) -> str:
     """Opens a save file dialog.
 
@@ -1366,7 +1569,7 @@ def run_cli() -> None:
         source, output = args.merge
         print(f"Merging files from '{source}' to '{output}'...")
         try:
-            tokens = merge_source_code(source, output, extensions=args.extensions)
+            tokens = merge_source_folder(source, output, extensions=args.extensions)
             print(f"Merge completed successfully. Estimated tokens: {tokens}")
         except Exception as e:
             print(f"Error during merge: {e}")
@@ -1394,7 +1597,7 @@ def run_gui() -> None:
     root.title("Source Code Bundler")
 
     window_width = 600
-    window_height = 340
+    window_height = 360
 
     config = load_config()
     if "geometry" in config:
@@ -1428,6 +1631,7 @@ def run_gui() -> None:
     operation_mode = tk.StringVar(value="merge")
     last_mode = "merge"
     overwrite_mode = tk.BooleanVar(value=config.get("overwrite_mode", False))
+    source_files_mode = tk.BooleanVar(value=config.get("source_files_mode", False))
     progress_var = tk.DoubleVar()
     extensions_config = config.get("extensions", {})
     extension_vars = {
@@ -1456,6 +1660,29 @@ def run_gui() -> None:
                 "Select Bundled Source File",
                 filetypes_list,
             )
+        elif mode == "merge" and source_files_mode.get():
+            # Multiple file selection for Source Files Mode
+            selected_files = select_files(
+                "Select Source Files",
+                filetypes_list,
+            )
+            if selected_files:
+                # Get current files and append new ones
+                current_files = source_var.get().split(";") if source_var.get() else []
+                # Filter out empty strings and remove duplicates
+                new_files = [f for f in selected_files if f.strip()]
+                combined_files = current_files + new_files
+                # Remove duplicates while preserving order
+                seen = set()
+                unique_files = []
+                for f in combined_files:
+                    if f not in seen:
+                        seen.add(f)
+                        unique_files.append(f)
+                # Join multiple files with a separator
+                selected = ";".join(unique_files)
+            else:
+                selected = ""
         else:
             selected = select_directory("Select Source Directory")
 
@@ -1823,18 +2050,17 @@ def run_gui() -> None:
             )
             return
 
-        # Validate paths
-        src_path = Path(src)
-        if not src_path.exists():
-            GMessageBox.showerror(
-                "Invalid Source", f"Source path does not exist:\n{src}"
-            )
-            return
-
         progress_var.set(0)
 
         try:
             if mode == "split":
+                # Validate paths for split mode
+                src_path = Path(src)
+                if not src_path.exists():
+                    GMessageBox.showerror(
+                        "Invalid Source", f"Source path does not exist:\n{src}"
+                    )
+                    return
                 if not src_path.is_file():
                     GMessageBox.showerror(
                         "Invalid Source", "Source must be a file in split mode."
@@ -1867,6 +2093,13 @@ def run_gui() -> None:
                     "Operation Complete", f"Successfully split source code into:\n{dst}"
                 )
             elif mode == "patch":
+                # Validate paths for patch mode
+                src_path = Path(src)
+                if not src_path.exists():
+                    GMessageBox.showerror(
+                        "Invalid Source", f"Source path does not exist:\n{src}"
+                    )
+                    return
                 if not src_path.is_file():
                     GMessageBox.showerror(
                         "Invalid Source", "Source must be a patch file."
@@ -1897,11 +2130,39 @@ def run_gui() -> None:
                     "Operation Complete", "Patch applied successfully."
                 )
             else:
-                if not src_path.is_dir():
-                    GMessageBox.showerror(
-                        "Invalid Source", "Source must be a directory in merge mode."
-                    )
-                    return
+                # Handle both directory and multiple file sources for merge mode
+                if source_files_mode.get():
+                    # Source Files Mode - validate multiple files
+                    source_files = src.split(";")
+                    invalid_files = []
+                    for file_path in source_files:
+                        if not file_path.strip():
+                            continue
+                        path = Path(file_path.strip())
+                        if not path.is_file():
+                            invalid_files.append(file_path.strip())
+
+                    if invalid_files:
+                        GMessageBox.showerror(
+                            "Invalid Source",
+                            "The following files do not exist:\n"
+                            + "\n".join(invalid_files),
+                        )
+                        return
+                else:
+                    # Directory Mode - validate directory
+                    src_path = Path(src)
+                    if not src_path.exists():
+                        GMessageBox.showerror(
+                            "Invalid Source", f"Source path does not exist:\n{src}"
+                        )
+                        return
+                    if not src_path.is_dir():
+                        GMessageBox.showerror(
+                            "Invalid Source",
+                            "Source must be a directory in merge mode.",
+                        )
+                        return
 
                 dst_path = Path(dst)
                 if dst_path.exists():
@@ -1916,15 +2177,31 @@ def run_gui() -> None:
                 active_extensions = [
                     ext for ext, var in extension_vars.items() if var.get()
                 ]
-                tokens = merge_source_code(
-                    src,
-                    dst,
-                    extensions=active_extensions,
-                    filters=filter_rules,
-                    progress_callback=lambda c, t: update_progress(
-                        c, t, progress_var, root
-                    ),
-                )
+
+                if source_files_mode.get():
+                    # Use merge_source_files for multiple files
+                    # In Source Files Mode, ignore extension and filter restrictions
+                    source_files = src.split(";")
+                    tokens = merge_source_files(
+                        source_files,
+                        dst,
+                        extensions=None,  # Ignore extension restrictions
+                        filters=None,  # Ignore filter rules
+                        progress_callback=lambda c, t: update_progress(
+                            c, t, progress_var, root
+                        ),
+                    )
+                else:
+                    # Use merge_source_folder for directory
+                    tokens = merge_source_folder(
+                        src,
+                        dst,
+                        extensions=active_extensions,
+                        filters=filter_rules,
+                        progress_callback=lambda c, t: update_progress(
+                            c, t, progress_var, root
+                        ),
+                    )
                 update_history(
                     src,
                     dst,
@@ -1942,10 +2219,30 @@ def run_gui() -> None:
                     "Operation Complete",
                     f"Successfully bundled source code into:\n{dst}\n\nEstimated Tokens: {tokens}",
                 )
+        except ValueError as ve:
+            # Handle specific validation errors from merge functions
+            GMessageBox.showerror("Operation Failed", str(ve))
         except Exception as error:
+            # Handle other unexpected errors
             GMessageBox.showerror("Operation Failed", str(error))
 
         progress_var.set(0)
+
+    def update_source_label() -> None:
+        """Updates source label based on operation mode and source files mode."""
+        mode = operation_mode.get()
+        if mode == "merge" and source_files_mode.get():
+            source_label.config(text="Source Files:")
+        elif mode == "split":
+            source_label.config(text="Source File:")
+        elif mode == "patch":
+            source_label.config(text="Patch File:")
+        else:
+            source_label.config(text="Source Directory:")
+
+    def toggle_source_files_mode() -> None:
+        """Handles Source Files Mode checkbox toggle."""
+        update_source_label()
 
     def toggle_operation_mode() -> None:
         """Updates UI labels when operation mode changes."""
@@ -1963,23 +2260,25 @@ def run_gui() -> None:
         last_mode = mode
 
         if mode == "split":
-            source_label.config(text="Source File:")
             destination_label.config(text="Output Directory:")
             source_entry["values"] = split_source_history
             destination_entry["values"] = split_dest_history
             overwrite_check.config(state="normal")
+            source_files_check.config(state="disabled")
         elif mode == "patch":
-            source_label.config(text="Patch File:")
             destination_label.config(text="Target Directory:")
             source_entry["values"] = patch_source_history
             destination_entry["values"] = patch_dest_history
             overwrite_check.config(state="disabled")
+            source_files_check.config(state="disabled")
         else:
-            source_label.config(text="Source Directory:")
             destination_label.config(text="Output File:")
             source_entry["values"] = merge_source_history
             destination_entry["values"] = merge_dest_history
             overwrite_check.config(state="disabled")
+            source_files_check.config(state="normal")
+
+        update_source_label()
 
     # Main GUI Layout
     main_frame = ttk.Frame(root, padding=10)
@@ -2045,13 +2344,22 @@ def run_gui() -> None:
         command=toggle_operation_mode,
     ).pack(side=tk.LEFT)
 
+    source_files_check = ttk.Checkbutton(
+        input_frame,
+        text="Source Files Mode",
+        variable=source_files_mode,
+        state="normal",
+        command=toggle_source_files_mode,
+    )
+    source_files_check.grid(row=3, column=0, columnspan=2, sticky=tk.W, pady=(0, 5))
+
     overwrite_check = ttk.Checkbutton(
         input_frame,
         text="Overwrite Mode",
         variable=overwrite_mode,
         state="disabled",
     )
-    overwrite_check.grid(row=3, column=0, columnspan=2, sticky=tk.W, pady=(0, 10))
+    overwrite_check.grid(row=4, column=0, columnspan=2, sticky=tk.W, pady=(0, 10))
 
     # Second frame: Actions
     action_frame = ttk.Frame(main_frame)
@@ -2063,20 +2371,12 @@ def run_gui() -> None:
     progress_bar = ttk.Progressbar(action_frame, variable=progress_var, maximum=100)
     progress_bar.grid(row=0, column=0, sticky="ew", pady=(10, 5))
 
-    button_frame = ttk.Frame(action_frame)
-    button_frame.grid(row=1, column=0, pady=10, sticky="s")
-
-    options_button = create_styled_button(button_frame, "Options", show_options)
-    options_button.pack(side=tk.LEFT, padx=5)
-
-    execute_button = create_styled_button(button_frame, "Execute", run_operation)
-    execute_button.pack(side=tk.LEFT, padx=5)
-
     def on_closing() -> None:
         """Saves configuration and closes the application."""
         config["geometry"] = root.geometry()
         config["extensions"] = {ext: var.get() for ext, var in extension_vars.items()}
         config["overwrite_mode"] = overwrite_mode.get()
+        config["source_files_mode"] = source_files_mode.get()
         config["merge_source_history"] = merge_source_history
         config["merge_dest_history"] = merge_dest_history
         config["split_source_history"] = split_source_history
@@ -2087,7 +2387,23 @@ def run_gui() -> None:
         save_config(config)
         root.destroy()
 
+    button_frame = ttk.Frame(action_frame)
+    button_frame.grid(row=1, column=0, pady=10, sticky="s")
+
+    options_button = create_styled_button(button_frame, "Options", show_options)
+    options_button.pack(side=tk.LEFT, padx=5)
+
+    execute_button = create_styled_button(button_frame, "Execute", run_operation)
+    execute_button.pack(side=tk.LEFT, padx=5)
+
+    exit_button = create_styled_button(button_frame, "Exit", on_closing)
+    exit_button.pack(side=tk.LEFT, padx=5)
+
     root.protocol("WM_DELETE_WINDOW", on_closing)
+
+    # Initialize source label based on current mode and checkbox state
+    update_source_label()
+
     root.mainloop()
 
 

@@ -65,7 +65,7 @@ class TestSourceCodeBundler(unittest.TestCase):
             self._create_test_file(path, content)
 
         # Merge files
-        source_code_bundler.merge_source_code(
+        source_code_bundler.merge_source_folder(
             self.src_dir, self.bundle_file, extensions=[".py", ".css"]
         )
         self.assertTrue(os.path.exists(self.bundle_file), "Bundle file was not created")
@@ -95,7 +95,7 @@ class TestSourceCodeBundler(unittest.TestCase):
         toml_content = '[package]\nname = "test"\nversion = "1.0.0"\n'
         self._create_test_file("config.toml", toml_content)
 
-        source_code_bundler.merge_source_code(
+        source_code_bundler.merge_source_folder(
             self.src_dir, self.bundle_file, extensions=[".toml"]
         )
 
@@ -124,7 +124,7 @@ class TestSourceCodeBundler(unittest.TestCase):
         self._create_test_file("style.css", "body { color: red; }")
         self._create_test_file("readme.md", "# Readme")
 
-        source_code_bundler.merge_source_code(
+        source_code_bundler.merge_source_folder(
             self.src_dir, self.bundle_file, extensions=[".py"]
         )
 
@@ -150,7 +150,7 @@ class TestSourceCodeBundler(unittest.TestCase):
             {"rule": "inactive.py", "active": False},
         ]
 
-        source_code_bundler.merge_source_code(
+        source_code_bundler.merge_source_folder(
             self.src_dir,
             self.bundle_file,
             extensions=[".py", ".log"],
@@ -200,7 +200,7 @@ class TestSourceCodeBundler(unittest.TestCase):
         for filename, content in test_files.items():
             self._create_test_file(filename, content)
 
-        source_code_bundler.merge_source_code(
+        source_code_bundler.merge_source_folder(
             self.src_dir, self.bundle_file, extensions=[".py", ".cpp", ".css"]
         )
 
@@ -214,7 +214,7 @@ class TestSourceCodeBundler(unittest.TestCase):
 
     def test_merge_empty_directory(self):
         """Test merging an empty directory produces an empty file."""
-        source_code_bundler.merge_source_code(
+        source_code_bundler.merge_source_folder(
             self.src_dir, self.bundle_file, extensions=[".py"]
         )
         self.assertTrue(os.path.exists(self.bundle_file))
@@ -228,7 +228,7 @@ class TestSourceCodeBundler(unittest.TestCase):
         """Test CSS files have correctly formatted comment markers with closing tags."""
         self._create_test_file("style.css", "body { color: blue; }")
 
-        source_code_bundler.merge_source_code(
+        source_code_bundler.merge_source_folder(
             self.src_dir, self.bundle_file, extensions=[".css"]
         )
 
@@ -253,7 +253,7 @@ class TestSourceCodeBundler(unittest.TestCase):
 
         # Test CPP bundle (should use //)
         cpp_bundle = os.path.join(self.test_dir, "bundle.cpp")
-        source_code_bundler.merge_source_code(
+        source_code_bundler.merge_source_folder(
             self.src_dir, cpp_bundle, extensions=[".cpp"]
         )
         with open(cpp_bundle, "r", encoding="utf-8") as f:
@@ -262,7 +262,7 @@ class TestSourceCodeBundler(unittest.TestCase):
 
         # Test CSS bundle (should use /* ... */)
         css_bundle = os.path.join(self.test_dir, "bundle.css")
-        source_code_bundler.merge_source_code(
+        source_code_bundler.merge_source_folder(
             self.src_dir, css_bundle, extensions=[".cpp"]
         )
         with open(css_bundle, "r", encoding="utf-8") as f:
@@ -273,7 +273,7 @@ class TestSourceCodeBundler(unittest.TestCase):
         """Test that CSS markers are proper CSS comments (opened and closed)."""
         self._create_test_file("test.css", "body { color: red; }")
 
-        source_code_bundler.merge_source_code(
+        source_code_bundler.merge_source_folder(
             self.src_dir, self.bundle_file, extensions=[".css"]
         )
 
@@ -315,7 +315,7 @@ class TestSourceCodeBundler(unittest.TestCase):
         for filename, content in test_files.items():
             self._create_test_file(filename, content)
 
-        source_code_bundler.merge_source_code(
+        source_code_bundler.merge_source_folder(
             self.src_dir, self.bundle_file, extensions=[".py", ".css", ".rs", ".cpp"]
         )
 
@@ -439,7 +439,7 @@ class TestSourceCodeBundler(unittest.TestCase):
         with open(root_file, "w") as f:
             f.write("# Root file")
 
-        source_code_bundler.merge_source_code(
+        source_code_bundler.merge_source_folder(
             self.src_dir, self.bundle_file, extensions=[".py"]
         )
 
@@ -470,7 +470,7 @@ class TestSourceCodeBundler(unittest.TestCase):
             temp_bundle = os.path.join(temp_dir, "temp_bundle.txt")
 
             # Merge from temporary directory
-            source_code_bundler.merge_source_code(
+            source_code_bundler.merge_source_folder(
                 temp_dir, temp_bundle, extensions=[".py"]
             )
 
@@ -497,7 +497,7 @@ class TestSourceCodeBundler(unittest.TestCase):
         with open(bin_path, "wb") as f:
             f.write(b"\x00\x00\x00\x01")  # Null bytes indicating binary
 
-        source_code_bundler.merge_source_code(
+        source_code_bundler.merge_source_folder(
             self.src_dir, self.bundle_file, extensions=[".dat"]
         )
 
@@ -524,7 +524,7 @@ class TestSourceCodeBundler(unittest.TestCase):
         with open(path_bin, "wb") as f:
             f.write(content_bin.encode("latin-1"))
 
-        source_code_bundler.merge_source_code(
+        source_code_bundler.merge_source_folder(
             self.src_dir, self.bundle_file, extensions=[".txt"]
         )
 
@@ -549,7 +549,7 @@ class TestSourceCodeBundler(unittest.TestCase):
         with open(file_path, "wb") as f:
             f.write(latin1_content)
 
-        source_code_bundler.merge_source_code(
+        source_code_bundler.merge_source_folder(
             self.src_dir, self.bundle_file, extensions=[".txt"]
         )
 
@@ -576,7 +576,7 @@ class TestSourceCodeBundler(unittest.TestCase):
             original_permissions = os.stat(problematic_file).st_mode
             os.chmod(problematic_file, 0o000)  # Make file unreadable
 
-            source_code_bundler.merge_source_code(
+            source_code_bundler.merge_source_folder(
                 self.src_dir, self.bundle_file, extensions=[".py"]
             )
 
@@ -697,7 +697,7 @@ class TestSourceCodeBundler(unittest.TestCase):
         except OSError:
             self.skipTest("Permission denied to create symlink")
 
-        source_code_bundler.merge_source_code(
+        source_code_bundler.merge_source_folder(
             self.src_dir, self.bundle_file, extensions=[".py"]
         )
 
@@ -725,7 +725,7 @@ class TestSourceCodeBundler(unittest.TestCase):
         except OSError:
             self.skipTest("Permission denied to create symlink")
 
-        source_code_bundler.merge_source_code(
+        source_code_bundler.merge_source_folder(
             self.src_dir, self.bundle_file, extensions=[".py"]
         )
 
@@ -748,7 +748,7 @@ class TestSourceCodeBundler(unittest.TestCase):
         for path, content in test_files.items():
             self._create_test_file(path, content)
 
-        source_code_bundler.merge_source_code(
+        source_code_bundler.merge_source_folder(
             self.src_dir, self.bundle_file, extensions=[".py"]
         )
 
@@ -777,7 +777,7 @@ class TestSourceCodeBundler(unittest.TestCase):
         self._create_test_file("test.py", test_content)
 
         # Merge
-        source_code_bundler.merge_source_code(
+        source_code_bundler.merge_source_folder(
             self.src_dir, self.bundle_file, extensions=[".py"]
         )
 
@@ -804,7 +804,7 @@ class TestSourceCodeBundler(unittest.TestCase):
         for filename, content in test_files.items():
             self._create_test_file(filename, content)
 
-        source_code_bundler.merge_source_code(
+        source_code_bundler.merge_source_folder(
             self.src_dir, self.bundle_file, extensions=[".py", ".css", ".txt"]
         )
 
@@ -835,7 +835,7 @@ class TestSourceCodeBundler(unittest.TestCase):
         for filename, content in test_cases.items():
             self._create_test_file(filename, content)
 
-        source_code_bundler.merge_source_code(
+        source_code_bundler.merge_source_folder(
             self.src_dir, self.bundle_file, extensions=[".py"]
         )
 
@@ -868,7 +868,7 @@ class TestSourceCodeBundler(unittest.TestCase):
         for filename, content in test_files.items():
             self._create_test_file(filename, content)
 
-        source_code_bundler.merge_source_code(
+        source_code_bundler.merge_source_folder(
             self.src_dir, self.bundle_file, extensions=[".py"]
         )
 
@@ -906,7 +906,7 @@ class TestSourceCodeBundler(unittest.TestCase):
         for filename, content in test_files.items():
             self._create_test_file(filename, content)
 
-        source_code_bundler.merge_source_code(
+        source_code_bundler.merge_source_folder(
             self.src_dir, self.bundle_file, extensions=[".py"]
         )
 
@@ -940,7 +940,7 @@ class TestSourceCodeBundler(unittest.TestCase):
         for filename, content in test_files.items():
             self._create_test_file(filename, content)
 
-        source_code_bundler.merge_source_code(
+        source_code_bundler.merge_source_folder(
             self.src_dir, self.bundle_file, extensions=[".py"]
         )
 
@@ -963,7 +963,7 @@ class TestSourceCodeBundler(unittest.TestCase):
         large_content = "print('large file')\n" * 50000  # ~1MB
         self._create_test_file("large.py", large_content)
 
-        source_code_bundler.merge_source_code(
+        source_code_bundler.merge_source_folder(
             self.src_dir, self.bundle_file, extensions=[".py"]
         )
 
@@ -998,7 +998,7 @@ class TestSourceCodeBundler(unittest.TestCase):
             with open(file_path, "w") as f:
                 f.write(f"# Level {i} file\nprint('level {i}')")
 
-        source_code_bundler.merge_source_code(
+        source_code_bundler.merge_source_folder(
             self.src_dir, self.bundle_file, extensions=[".py"]
         )
 
@@ -1021,7 +1021,7 @@ class TestSourceCodeBundler(unittest.TestCase):
         test_content = "# Very long path test\nprint('test')"
         self._create_test_file(long_path, test_content)
 
-        source_code_bundler.merge_source_code(
+        source_code_bundler.merge_source_folder(
             self.src_dir, self.bundle_file, extensions=[".py"]
         )
 
@@ -1050,7 +1050,7 @@ class TestSourceCodeBundler(unittest.TestCase):
         for i in range(150):
             self._create_test_file(f"file{i}.txt", f"Content {i}")
 
-        source_code_bundler.merge_source_code(
+        source_code_bundler.merge_source_folder(
             self.src_dir,
             self.bundle_file,
             extensions=[".txt"],
@@ -1192,66 +1192,78 @@ class TestSourceCodeBundler(unittest.TestCase):
     def test_options_dialog_local_state(self):
         """Test that Options dialog changes are only applied when clicking Apply."""
         import tkinter as tk
-        
+
         # Create a minimal root window (won't actually show)
         root = tk.Tk()
         root.withdraw()  # Hide the window
-        
+
         try:
             # Initialize global state similar to the actual application
             extension_vars = {
-                ext: tk.BooleanVar(value=True) 
+                ext: tk.BooleanVar(value=True)
                 for ext in source_code_bundler.DEFAULT_EXTENSIONS
             }
             filter_rules = [
                 {"rule": "test_filter", "active": True},
-                {"rule": "another_filter", "active": False}
+                {"rule": "another_filter", "active": False},
             ]
-            
+
             # Test the local copy creation logic (same as in show_options)
             local_extension_vars = {
-                ext: extension_vars[ext].get() for ext in source_code_bundler.DEFAULT_EXTENSIONS
+                ext: extension_vars[ext].get()
+                for ext in source_code_bundler.DEFAULT_EXTENSIONS
             }
             local_filter_rules = [f.copy() for f in filter_rules]
-            
+
             # Verify initial state is copied correctly
             for ext in source_code_bundler.DEFAULT_EXTENSIONS:
                 self.assertEqual(local_extension_vars[ext], True)
                 self.assertEqual(extension_vars[ext].get(), True)
-            
+
             self.assertEqual(len(local_filter_rules), 2)
             self.assertEqual(local_filter_rules[0]["rule"], "test_filter")
             self.assertTrue(local_filter_rules[0]["active"])
-            
+
             # Simulate changing local state (like user toggling checkboxes)
             local_extension_vars[".py"] = False
             local_filter_rules[0]["active"] = False
-            
+
             # Verify global state hasn't changed
-            self.assertTrue(extension_vars[".py"].get(), 
-                          "Global extension state should not change when local state changes")
-            self.assertTrue(filter_rules[0]["active"], 
-                          "Global filter state should not change when local state changes")
-            
+            self.assertTrue(
+                extension_vars[".py"].get(),
+                "Global extension state should not change when local state changes",
+            )
+            self.assertTrue(
+                filter_rules[0]["active"],
+                "Global filter state should not change when local state changes",
+            )
+
             # Simulate applying changes (like clicking Apply button)
             for ext in source_code_bundler.DEFAULT_EXTENSIONS:
                 extension_vars[ext].set(local_extension_vars[ext])
-            
+
             filter_rules.clear()
             filter_rules.extend(local_filter_rules)
-            
+
             # Verify global state has changed after applying
-            self.assertFalse(extension_vars[".py"].get(), 
-                           "Global extension state should change after applying")
-            self.assertFalse(filter_rules[0]["active"], 
-                           "Global filter state should change after applying")
-            
+            self.assertFalse(
+                extension_vars[".py"].get(),
+                "Global extension state should change after applying",
+            )
+            self.assertFalse(
+                filter_rules[0]["active"],
+                "Global filter state should change after applying",
+            )
+
             # Verify other states remain unchanged
-            self.assertTrue(extension_vars[".rs"].get(), 
-                          "Other extension states should remain unchanged")
-            self.assertFalse(filter_rules[1]["active"], 
-                           "Other filter states should remain unchanged")
-            
+            self.assertTrue(
+                extension_vars[".rs"].get(),
+                "Other extension states should remain unchanged",
+            )
+            self.assertFalse(
+                filter_rules[1]["active"], "Other filter states should remain unchanged"
+            )
+
         finally:
             root.destroy()
 
